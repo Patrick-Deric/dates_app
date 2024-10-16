@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';  // For Firestore user collection
 
-
 class RegisterPage extends StatefulWidget {
   @override
   _RegisterPageState createState() => _RegisterPageState();
@@ -44,8 +43,14 @@ class _RegisterPageState extends State<RegisterPage> {
       // After registration, create a user document in Firestore
       await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
         'email': email,
-        'role': 'user',  // Default role is "user"
+        'role': 'regular',  // Default role is "regular"
         'createdAt': Timestamp.now(),
+      });
+
+      // Create a blank profile subcollection to hold user profile data
+      await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).collection('profile').doc('info').set({
+        'fullName': '',
+        'dateOfBirth': '',
       });
 
       // Send verification email

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'favourites.dart'; // Import Favourites Screen
+import 'profile.dart';  // Import Profile Screen
 import '/widgets/mapbox_map_widget.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -10,6 +12,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _locationPermissionGranted = false;
+  int _selectedIndex = 0;  // Track selected tab index
 
   // Initial position on the map (latitude, longitude)
   final LatLng initialPosition = LatLng(-23.5505, -46.6333);  // São Paulo, Brazil
@@ -39,47 +42,36 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // Switch between different pages on Bottom Navigation
+  Widget _buildPage(int index) {
+    switch (index) {
+      case 0:
+        return _locationPermissionGranted
+            ? MapboxMapWidget(
+          styleString: 'mapbox://styles/patrickderic/cm2bxbfxm000401qsd90u9wpe',
+        )
+            : Center(child: CircularProgressIndicator());
+      case 1:
+        return FavouritesScreen();  // Navigate to Favourites Screen
+      case 2:
+        return ProfileScreen();  // Navigate to Profile Screen
+      default:
+        return Center(child: Text('Unknown Page'));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Column(
-          children: [
-            // Search bar
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: TextField(
-                decoration: InputDecoration(
-                  hintText: 'Pesquisar rotas de encontro...',
-                  prefixIcon: Icon(Icons.search),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-            ),
-
-            // Expanded Mapbox Map widget
-            Expanded(
-              child: _locationPermissionGranted
-                  ? MapboxMapWidget(
-                styleString: 'mapbox://styles/patrickderic/cm2bxbfxm000401qsd90u9wpe',  // Pass styleString here
-              )
-                  : Center(
-                child: CircularProgressIndicator(),
-              ),
-            ),
-          ],
-        ),
+        child: _buildPage(_selectedIndex),  // Show selected page
       ),
-      // Bottom Navigation Bar
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,  // Initial active tab index
+        currentIndex: _selectedIndex,
         onTap: (int index) {
-          // Handle tab changes
+          setState(() {
+            _selectedIndex = index;  // Update selected index
+          });
         },
         items: const [
           BottomNavigationBarItem(
