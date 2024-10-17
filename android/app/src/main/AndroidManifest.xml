@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Required permissions for Mapbox and location access -->
+    <!-- Required permissions for Mapbox, Firebase, and location access -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -14,6 +14,20 @@
         <meta-data
                 android:name="com.mapbox.token"
                 android:value="sk.eyJ1IjoicGF0cmlja2RlcmljIiwiYSI6ImNtMmF0M29mNTBqcmQyaW94Y2hpcXBvd3MifQ.jjuflSQNzTpkhG0Wo3FB2g" /> <!-- Replace with your Mapbox token -->
+
+        <!-- Firebase Meta-data -->
+        <meta-data
+                android:name="com.google.firebase.messaging.default_notification_icon"
+                android:resource="@mipmap/ic_launcher" />
+        <meta-data
+                android:name="com.google.firebase.messaging.default_notification_color"
+                android:resource="@color/colorAccent" />
+
+        <!-- Google Sign-In Configuration -->
+        <meta-data
+                android:name="com.google.android.gms.ads.APPLICATION_ID"
+                android:value="1:71304613127:android:1e17ea7241631801fa49a2
+" /> <!-- Replace with your app id -->
 
         <activity
                 android:name=".MainActivity"

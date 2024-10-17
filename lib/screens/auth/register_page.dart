@@ -15,7 +15,6 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _isSigningUp = false;
   String? _errorMessage;
 
-  // Function to register the user with email and password
   Future<void> _registerWithEmailAndPassword() async {
     setState(() {
       _isSigningUp = true;
@@ -40,26 +39,28 @@ class _RegisterPageState extends State<RegisterPage> {
         password: password,
       );
 
-      // After registration, create a user document in Firestore
-      await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
+      // Send email verification
+      await userCredential.user!.sendEmailVerification();
+
+      // Create user document in Firestore
+      String userId = userCredential.user!.uid;
+      await FirebaseFirestore.instance.collection('users').doc(userId).set({
         'email': email,
         'role': 'regular',  // Default role is "regular"
         'createdAt': Timestamp.now(),
       });
 
-      // Create a blank profile subcollection to hold user profile data
-      await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).collection('profile').doc('info').set({
+      // Now create the "profile" subcollection for the user
+      await FirebaseFirestore.instance.collection('users').doc(userId).collection('profile').doc('info').set({
         'fullName': '',
         'dateOfBirth': '',
       });
-
-      // Send verification email
-      await userCredential.user!.sendEmailVerification();
 
       // Navigate to Verify Email Page
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => VerifyEmailPage()),
       );
+
     } catch (e) {
       setState(() {
         _errorMessage = 'Erro ao registrar: $e';

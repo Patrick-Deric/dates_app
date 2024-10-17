@@ -1,8 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'register_page.dart';  // Link to the Register Page
-import 'package:cloud_firestore/cloud_firestore.dart';  // Firestore for user collection
 
 class LoginPage extends StatefulWidget {
   @override
@@ -20,19 +20,41 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _signInWithEmailAndPassword() async {
     setState(() {
       _isSigningIn = true;
+      _errorMessage = null;
     });
 
     try {
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
 
+      // Sign in the user with Firebase Auth
       UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      // User successfully logged in, navigate to home
-      Navigator.pushReplacementNamed(context, '/home');
+      // Check if Firestore user exists and has the correct role
+      final userId = userCredential.user!.uid;
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+
+      if (userDoc.exists) {
+        String role = userDoc.get('role');
+
+        // Assuming "regular" role is allowed, you can add checks for other roles later
+        if (role == 'regular') {
+          Navigator.pushReplacementNamed(context, '/home');
+        } else {
+          setState(() {
+            _errorMessage = 'Usuário não tem permissão suficiente.';
+          });
+          await FirebaseAuth.instance.signOut();
+        }
+      } else {
+        setState(() {
+          _errorMessage = 'Usuário não encontrado no Firestore.';
+        });
+        await FirebaseAuth.instance.signOut();
+      }
     } catch (e) {
       setState(() {
         _errorMessage = 'Erro ao fazer login: Verifique suas credenciais.';
@@ -44,10 +66,11 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // Google sign-in function
+// Google sign-in function
   Future<User?> _signInWithGoogle() async {
     setState(() {
       _isSigningIn = true;
+      _errorMessage = null;
     });
 
     try {
@@ -67,10 +90,27 @@ class _LoginPageState extends State<LoginPage> {
 
       // Authenticate with Firebase
       UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+
+      // Check if Firestore user exists
+      final userId = userCredential.user!.uid;
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+
+      if (!userDoc.exists) {
+        // Create user in Firestore if they don't exist
+        await FirebaseFirestore.instance.collection('users').doc(userId).set({
+          'email': userCredential.user!.email,
+          'role': 'regular',  // Default role for new Google sign-in
+          'createdAt': Timestamp.now(),
+        });
+      }
+
+      // After successful sign-in, navigate to the HomeScreen
+      Navigator.pushReplacementNamed(context, '/home');
+
       return userCredential.user;
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage = 'Erro ao fazer login com Google: $e';
       });
       return null;
     } finally {
@@ -79,6 +119,7 @@ class _LoginPageState extends State<LoginPage> {
       });
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +135,7 @@ class _LoginPageState extends State<LoginPage> {
               // Welcome text
               Text(
                 "Bem-vindo de volta",
-                style: Theme.of(context).textTheme.displayLarge,  // Use large text style
+                style: Theme.of(context).textTheme.displayLarge,
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: 20),
@@ -142,7 +183,7 @@ class _LoginPageState extends State<LoginPage> {
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).primaryColor,  // Use Warm Rose
-                  minimumSize: Size(double.infinity, 50),  // Full width button
+                  minimumSize: Size(double.infinity, 50),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
                   ),
@@ -211,33 +252,6 @@ class _LoginPageState extends State<LoginPage> {
                 onPressed: _signInWithGoogle,
               ),
               SizedBox(height: 20),
-
-              // Terms of Use and Privacy Policy
-              Center(
-                child: Column(
-                  children: [
-                    GestureDetector(
-                      onTap: () {
-                        // Handle Terms of Use
-                      },
-                      child: Text(
-                        "Termos de Uso",
-                        style: TextStyle(color: Theme.of(context).primaryColor),
-                      ),
-                    ),
-                    SizedBox(height: 5),
-                    GestureDetector(
-                      onTap: () {
-                        // Handle Privacy Policy
-                      },
-                      child: Text(
-                        "Política de Privacidade",
-                        style: TextStyle(color: Theme.of(context).primaryColor),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
         ),

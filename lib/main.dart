@@ -9,27 +9,30 @@ import 'screens/auth/login_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase initialization based on the platform
+  // Firebase initialization
   await _initializeFirebase();
 
   runApp(MyApp());
 }
 
+// Consolidated Firebase initialization method
 Future<void> _initializeFirebase() async {
-  if (kIsWeb) {
-    await Firebase.initializeApp(
-      options: FirebaseOptions(
-        apiKey: "AIzaSyDig63k8nIl0RUT_e_VaQm6re78EADE53k",
-        authDomain: "app-de-dates.firebaseapp.com",
-        projectId: "app-de-dates",
-        storageBucket: "app-de-dates.appspot.com",
-        messagingSenderId: "71304613127",
-        appId: "1:71304613127:web:f23a67a7b7d212e3fa49a2",
-        measurementId: "G-7VSYZ3DNY0",
-      ),
-    );
-  } else if (Platform.isAndroid || Platform.isIOS) {
-    await Firebase.initializeApp();
+  if (Firebase.apps.isEmpty) {
+    if (kIsWeb) {
+      await Firebase.initializeApp(
+        options: FirebaseOptions(
+          apiKey: "AIzaSyDig63k8nIl0RUT_e_VaQm6re78EADE53k",
+          authDomain: "app-de-dates.firebaseapp.com",
+          projectId: "app-de-dates",
+          storageBucket: "app-de-dates.appspot.com",
+          messagingSenderId: "71304613127",
+          appId: "1:71304613127:web:f23a67a7b7d212e3fa49a2",
+          measurementId: "G-7VSYZ3DNY0",
+        ),
+      );
+    } else if (Platform.isAndroid || Platform.isIOS) {
+      await Firebase.initializeApp();
+    }
   }
 }
 
@@ -69,7 +72,12 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: AuthWrapper(),  // AuthWrapper determines whether to show LoginPage or HomeScreen
+      initialRoute: '/',  // Define the initial route
+      routes: {
+        '/': (context) => AuthWrapper(),  // Entry point
+        '/home': (context) => HomeScreen(),  // Route to HomeScreen
+        '/login': (context) => LoginPage(),  // Route to LoginPage for flexibility
+      },
     );
   }
 }
@@ -81,14 +89,33 @@ class AuthWrapper extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator());  // Loading indicator while Firebase checks authentication
+          return Scaffold(
+            body: Center(child: CircularProgressIndicator()),  // Loading spinner
+          );
         }
+
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Text(
+                'Ocorreu um erro. Tente novamente mais tarde.',
+                style: TextStyle(color: Colors.red, fontSize: 18),
+              ),
+            ),
+          );
+        }
+
         if (snapshot.hasData && snapshot.data != null) {
-          return HomeScreen();  // User logged in
+          User? user = snapshot.data;
+          // Direct to home if authenticated
+          return HomeScreen();
         }
-        return LoginPage();  // If not logged in, show LoginPage
+
+        // If not authenticated, direct to login
+        return LoginPage();
       },
     );
   }
 }
+
 
