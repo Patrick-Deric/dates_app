@@ -55,15 +55,129 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Categories List (e.g., Romantic, Family, Cultural, First Date)
+  Widget _buildCategories() {
+    final categories = ["Romantic", "Family", "Cultural", "First Date"];
+    String? _selectedCategory; // To keep track of the selected category
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: categories.map((category) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: ChoiceChip(
+              label: Text(category),
+              selected: _selectedCategory == category,
+              selectedColor: Theme.of(context).primaryColor, // Highlight selected chip
+              labelStyle: TextStyle(
+                color: _selectedCategory == category ? Colors.white : Colors.black,
+              ),
+              onSelected: (bool isSelected) {
+                setState(() {
+                  if (isSelected) {
+                    _selectedCategory = category;
+                  }
+                });
+              },
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // Search Bar Widget
+  Widget _buildSearchBar() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30.0),
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10.0)],
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.search, color: Colors.grey),
+          SizedBox(width: 8.0),
+          Text("Para onde?", style: TextStyle(color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+
+  // Build Map and DraggableScrollableSheet
+  Widget _buildMapAndMenu() {
+    return Stack(
+      children: [
+        // Map in the background
+        _locationPermissionGranted
+            ? MapboxMapWidget(styleString: _mapStyle)
+            : Center(child: CircularProgressIndicator()),
+
+        // Draggable sheet for categories and search bar
+        DraggableScrollableSheet(
+          initialChildSize: 0.4, // Visible part initially
+          minChildSize: 0.2,      // Minimum size when dragged down
+          maxChildSize: 0.8,      // Maximum size when dragged up
+          builder: (context, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                ),
+                boxShadow: [BoxShadow(blurRadius: 10, color: Colors.black26)],
+              ),
+              child: SingleChildScrollView(
+                controller: scrollController,
+                child: Column(
+                  children: [
+                    SizedBox(height: 10),  // Padding at the top
+                    Container(
+                      height: 5,
+                      width: 50,
+                      color: Colors.grey[300],  // Drag handle
+                    ),
+                    SizedBox(height: 20),
+
+                    // Search Bar
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      child: _buildSearchBar(),
+                    ),
+                    SizedBox(height: 10),
+
+                    // Categories
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                      child: _buildCategories(),
+                    ),
+                    SizedBox(height: 10),
+
+                    // Placeholder content when categories are expanded
+                    Container(
+                      height: 200,
+                      child: Center(
+                        child: Text("Browse date ideas here"),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
   // Switch between different pages on Bottom Navigation
   Widget _buildPage(int index) {
     switch (index) {
       case 0:
-        return _locationPermissionGranted
-            ? MapboxMapWidget(
-          styleString: _mapStyle,  // Use selected map style
-        )
-            : Center(child: CircularProgressIndicator());
+        return _buildMapAndMenu();  // Display Map and the DraggableScrollableSheet for categories
       case 1:
         return FavouritesScreen();  // Navigate to Favourites Screen
       case 2:
@@ -150,4 +264,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
+
 

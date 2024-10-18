@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';  // Para usar File
-import 'package:firebase_auth/firebase_auth.dart';  // Para autenticação
-import 'package:cloud_firestore/cloud_firestore.dart';  // Para Firestore
-import 'package:firebase_storage/firebase_storage.dart';  // Para Firebase Storage
-import 'package:path/path.dart';  // Para pegar o nome do arquivo
+import 'dart:io';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:path/path.dart';
 import 'package:intl/intl.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -13,22 +13,24 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  File? _profileImage;  // Armazena a imagem do perfil
+  File? _profileImage;
+  String? _profileImageUrl; // Store the profile image URL
   final _picker = ImagePicker();
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
-  final _storage = FirebaseStorage.instance;  // Instância do Firebase Storage
+  final _storage = FirebaseStorage.instance;
   User? user;
 
   final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
   DateTime? _selectedDate;
+
+  bool _isEditing = false; // To track if the user is editing
 
   @override
   void initState() {
     super.initState();
     user = _auth.currentUser;
-    _loadUserData();  // Carregar dados do Firestore
+    _loadUserData();
   }
 
   Future<void> _loadUserData() async {
@@ -37,56 +39,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (userDoc.exists) {
         setState(() {
           _nameController.text = userDoc['name'] ?? '';
-          _emailController.text = user!.email ?? '';
           _selectedDate = userDoc['birthdate']?.toDate() ?? DateTime.now();
+          _profileImageUrl = userDoc['profileImageUrl']; // Load profile image URL
         });
       }
     }
   }
 
-  // Função para escolher a imagem e fazer upload no Firebase Storage
-  Future<void> _pickImage() async {
+  Future<void> _pickImage(BuildContext context) async {
     final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
       setState(() {
         _profileImage = File(pickedFile.path);
       });
-
-      await _uploadImageToFirebase();
+      await _uploadImageToFirebase(context);
     }
   }
 
-  // Função para fazer o upload da imagem no Firebase Storage
-  Future<void> _uploadImageToFirebase() async {
+  Future<void> _uploadImageToFirebase(BuildContext context) async {
     if (_profileImage != null && user != null) {
       try {
-        String fileName = basename(_profileImage!.path);  // Nome do arquivo
+        String fileName = basename(_profileImage!.path);
         Reference storageRef = _storage.ref().child('profile_images/${user!.uid}/$fileName');
-
-        // Faz o upload da imagem para o Firebase Storage
         UploadTask uploadTask = storageRef.putFile(_profileImage!);
         TaskSnapshot snapshot = await uploadTask;
-
-        // Pega o link da imagem carregada
         String imageUrl = await snapshot.ref.getDownloadURL();
 
-        // Atualiza o Firestore com o link da imagem
+        // Save the profile image URL in Firestore
         await _firestore.collection('users').doc(user!.uid).update({
-          'profileImageUrl': imageUrl,  // Salva o URL da imagem no Firestore
+          'profileImageUrl': imageUrl,
         });
 
-        ScaffoldMessenger.of(context as BuildContext).showSnackBar(SnackBar(
+        setState(() {
+          _profileImageUrl = imageUrl; // Update the UI with the new profile image URL
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Imagem de perfil atualizada com sucesso!'),
         ));
       } catch (e) {
-        ScaffoldMessenger.of(context as BuildContext).showSnackBar(SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Erro ao fazer upload da imagem: $e'),
         ));
       }
     }
   }
 
-  // Função para escolher data de nascimento
   Future<void> _pickDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -101,15 +99,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // Função para salvar alterações no Firestore
-  Future<void> _saveProfile() async {
+  Future<void> _saveProfile(BuildContext context) async {
     if (user != null) {
       await _firestore.collection('users').doc(user!.uid).update({
         'name': _nameController.text,
         'birthdate': _selectedDate,
       });
-      ScaffoldMessenger.of(context as BuildContext).showSnackBar(SnackBar(content: Text('Perfil atualizado com sucesso')));
+      setState(() {
+        _isEditing = false; // Exit editing mode
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Perfil atualizado com sucesso')));
     }
+  }
+
+  // Toggle edit mode
+  void _toggleEditMode() {
+    setState(() {
+      _isEditing = !_isEditing;
+    });
+  }
+
+  // Function to capitalize the first letter of each word
+  String capitalizeName(String name) {
+    return name.split(' ').map((word) {
+      if (word.isEmpty) return word;
+      return word[0].toUpperCase() + word.substring(1).toLowerCase();
+    }).join(' ');
   }
 
   @override
@@ -117,91 +132,113 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Perfil'),
+        actions: [
+          // Show "Editar" or "Salvar" button depending on editing mode
+          TextButton(
+            onPressed: _isEditing ? () => _saveProfile(context) : _toggleEditMode,
+            child: Text(_isEditing ? 'Salvar' : 'Editar', style: TextStyle(color: Colors.black)),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: SingleChildScrollView(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              SizedBox(height: 20),
-
-              // Imagem de perfil com tamanho padronizado
-              CircleAvatar(
-                radius: 60,  // Tamanho padrão da imagem
-                backgroundColor: Colors.grey.shade200,
-                backgroundImage: _profileImage != null ? FileImage(_profileImage!) : null,
-                child: _profileImage == null ? Icon(Icons.person, size: 60) : null,
-              ),
-
-              SizedBox(height: 20),
-
-              // Botão para alterar a foto do perfil
-              ElevatedButton.icon(
-                icon: Icon(Icons.camera_alt),
-                label: Text('Alterar Foto de Perfil'),
-                onPressed: _pickImage,  // Escolher imagem
-              ),
-
-              SizedBox(height: 40),
-
-              // Campo de nome
-              TextField(
-                controller: _nameController,
-                decoration: InputDecoration(
-                  labelText: 'Nome Completo',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
+              // Profile image and name section with birthdate and email
+              Card(
+                elevation: 5,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 40,
+                        backgroundColor: Colors.grey.shade200,
+                        backgroundImage: _profileImage != null
+                            ? FileImage(_profileImage!)
+                            : (_profileImageUrl != null ? NetworkImage(_profileImageUrl!) : null),
+                        child: _profileImage == null && _profileImageUrl == null
+                            ? Icon(Icons.person, size: 40)
+                            : null,
+                      ),
+                      SizedBox(width: 20),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _nameController.text.isNotEmpty
+                                  ? capitalizeName(_nameController.text)
+                                  : 'Nome Completo',
+                              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                            ),
+                            SizedBox(height: 10),
+                            Text(
+                              user?.email ?? 'Email',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                            SizedBox(height: 10),
+                            Text(
+                              _selectedDate != null
+                                  ? DateFormat('dd/MM/yyyy').format(_selectedDate!)
+                                  : 'Data de Nascimento',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-
               SizedBox(height: 20),
 
-              // Campo de data de nascimento com seletor de data
-              GestureDetector(
-                onTap: () => _pickDate(context),  // Abrir seletor de data
-                child: AbsorbPointer(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      labelText: _selectedDate != null
-                          ? DateFormat('dd/MM/yyyy').format(_selectedDate!)
-                          : 'Data de Nascimento',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30),
+              // Edit Profile Picture Button (only visible in editing mode)
+              if (_isEditing)
+                ElevatedButton.icon(
+                  icon: Icon(Icons.camera_alt),
+                  label: Text('Alterar Foto de Perfil'),
+                  onPressed: () => _pickImage(context),
+                ),
+
+              if (_isEditing) ...[
+                SizedBox(height: 20),
+
+                // Display or Edit Name (only visible in editing mode)
+                TextField(
+                  controller: _nameController,
+                  enabled: _isEditing,
+                  decoration: InputDecoration(
+                    labelText: 'Nome Completo',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 20),
+
+                // Display or Edit Date of Birth (only visible in editing mode)
+                GestureDetector(
+                  onTap: _isEditing ? () => _pickDate(context) : null,
+                  child: AbsorbPointer(
+                    child: TextField(
+                      decoration: InputDecoration(
+                        labelText: _selectedDate != null
+                            ? DateFormat('dd/MM/yyyy').format(_selectedDate!)
+                            : 'Data de Nascimento',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-
-              SizedBox(height: 20),
-
-              // Campo de e-mail (apenas leitura)
-              TextField(
-                controller: _emailController,
-                readOnly: true,
-                decoration: InputDecoration(
-                  labelText: 'E-mail',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                ),
-              ),
-
-              SizedBox(height: 40),
-
-              // Botão para salvar alterações
-              ElevatedButton(
-                onPressed: _saveProfile,
-                child: Text('Salvar Alterações'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                ),
-              ),
+                SizedBox(height: 20),
+              ],
             ],
           ),
         ),
@@ -209,5 +246,4 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
-
 
