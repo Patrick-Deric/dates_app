@@ -1,3 +1,4 @@
+import 'package:app_de_dates/screens/home/criar_rota.dart';
 import 'package:flutter/material.dart';
 import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -14,11 +15,12 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _locationPermissionGranted = false;
-  int _selectedIndex = 0;  // Track selected tab index
-  String _mapStyle = MapboxStyles.MAPBOX_STREETS;  // Default Mapbox style
+  int _selectedIndex = 0; // Track selected tab index
+  String _mapStyle = MapboxStyles.MAPBOX_STREETS; // Default Mapbox style
 
   // Initial position on the map (latitude, longitude)
-  final LatLng initialPosition = LatLng(-23.5505, -46.6333);  // São Paulo, Brazil
+  final LatLng initialPosition = LatLng(
+      -23.5505, -46.6333); // São Paulo, Brazil
 
   @override
   void initState() {
@@ -69,9 +71,13 @@ class _HomeScreenState extends State<HomeScreen> {
             child: ChoiceChip(
               label: Text(category),
               selected: _selectedCategory == category,
-              selectedColor: Theme.of(context).primaryColor, // Highlight selected chip
+              selectedColor: Theme
+                  .of(context)
+                  .primaryColor,
+              // Highlight selected chip
               labelStyle: TextStyle(
-                color: _selectedCategory == category ? Colors.white : Colors.black,
+                color: _selectedCategory == category ? Colors.white : Colors
+                    .black,
               ),
               onSelected: (bool isSelected) {
                 setState(() {
@@ -118,8 +124,8 @@ class _HomeScreenState extends State<HomeScreen> {
         // Draggable sheet for categories and search bar
         DraggableScrollableSheet(
           initialChildSize: 0.4, // Visible part initially
-          minChildSize: 0.2,      // Minimum size when dragged down
-          maxChildSize: 0.8,      // Maximum size when dragged up
+          minChildSize: 0.2, // Minimum size when dragged down
+          maxChildSize: 0.8, // Maximum size when dragged up
           builder: (context, scrollController) {
             return Container(
               decoration: BoxDecoration(
@@ -134,11 +140,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 controller: scrollController,
                 child: Column(
                   children: [
-                    SizedBox(height: 10),  // Padding at the top
+                    SizedBox(height: 10), // Padding at the top
                     Container(
                       height: 5,
                       width: 50,
-                      color: Colors.grey[300],  // Drag handle
+                      color: Colors.grey[300], // Drag handle
                     ),
                     SizedBox(height: 20),
 
@@ -177,11 +183,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildPage(int index) {
     switch (index) {
       case 0:
-        return _buildMapAndMenu();  // Display Map and the DraggableScrollableSheet for categories
+        return _buildMapAndMenu();
       case 1:
-        return FavouritesScreen();  // Navigate to Favourites Screen
+        return CriarRotaScreen(); // Display Map and the DraggableScrollableSheet for categories
       case 2:
-        return ProfileScreen();  // Navigate to Profile Screen
+        return FavouritesScreen(); // Navigate to Favourites Screen
+      case 3:
+        return ProfileScreen(); // Navigate to Profile Screen
       default:
         return Center(child: Text('Unknown Page'));
     }
@@ -191,14 +199,21 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('DateFindr'),
-        backgroundColor: Theme.of(context).primaryColor,
+        title: Text(
+          'DateFindr',
+          style: TextStyle(color: Colors
+              .white), // Set text color to white for better contrast
+        ),
+        backgroundColor: Colors.redAccent,
+        // Change this to your desired color for the app bar
+        iconTheme: IconThemeData(color: Colors.white),
+        // Set icon color to white for visibility
         leading: Builder(
           builder: (context) {
             return IconButton(
-              icon: Icon(Icons.menu),  // Hamburger menu icon
+              icon: Icon(Icons.menu), // Hamburger menu icon
               onPressed: () {
-                Scaffold.of(context).openDrawer();  // Open drawer
+                Scaffold.of(context).openDrawer(); // Open drawer
               },
             );
           },
@@ -210,7 +225,8 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             DrawerHeader(
               decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor,
+                color: Colors
+                    .redAccent, // Match drawer header color with app bar
               ),
               child: Text(
                 'Menu',
@@ -218,38 +234,56 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             ListTile(
-              leading: Icon(Icons.map),
+              leading: Icon(Icons.map, color: Colors.black),
               title: Text('Reset Map Style'),
               onTap: () {
                 // Reset to default Mapbox style
                 setState(() {
                   _mapStyle = MapboxStyles.MAPBOX_STREETS;
                 });
-                Navigator.pop(context);  // Close the drawer
+                Navigator.pop(context); // Close the drawer
               },
             ),
             ListTile(
-              leading: Icon(Icons.logout),
+              leading: Icon(Icons.logout, color: Colors.black),
               title: Text('Logout'),
-              onTap: _logout,  // Call the logout function
+              onTap: _logout, // Call the logout function
             ),
           ],
         ),
       ),
       body: SafeArea(
-        child: _buildPage(_selectedIndex),  // Show selected page
+        child: _buildPage(_selectedIndex), // Show selected page
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (int index) {
           setState(() {
-            _selectedIndex = index;  // Update selected index
+            _selectedIndex = index; // Update selected index
           });
         },
+        backgroundColor: Colors.white,
+        // Set background color of the navbar
+        selectedItemColor: Colors.redAccent,
+        // Set color for the selected icon and text
+        unselectedItemColor: Colors.black54,
+        // Set color for unselected icons and text
+        selectedIconTheme: IconThemeData(color: Colors.redAccent),
+        // Set icon color for selected item
+        unselectedIconTheme: IconThemeData(color: Colors.black54),
+        // Set icon color for unselected items
+        selectedLabelStyle: TextStyle(color: Colors.redAccent),
+        // Set text color for selected item
+        unselectedLabelStyle: TextStyle(color: Colors.black54),
+        // Set text color for unselected items
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.map),
             label: 'Explorar',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.add),
+            label: 'Criar Date',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.favorite),
@@ -264,6 +298,4 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
-
-
 
