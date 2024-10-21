@@ -103,7 +103,12 @@ class _HomeScreenState extends State<HomeScreen> {
     return Stack(
       children: [
         _locationPermissionGranted
-            ? MapboxMapWidget(styleString: _mapStyle)
+            ? MapboxMapWidget(
+          styleString: _mapStyle,
+          initialLat: initialPosition.latitude,  // Use initial latitude
+          initialLng: initialPosition.longitude, // Use initial longitude
+          selectedStops: [],  // You can pass an empty list or the actual stops
+        )
             : Center(child: CircularProgressIndicator()),
 
         DraggableScrollableSheet(
@@ -159,6 +164,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     );
   }
+
 
   Widget _buildPage(int index) {
     switch (index) {

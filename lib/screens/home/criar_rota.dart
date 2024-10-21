@@ -1,9 +1,10 @@
+// AIzaSyA3Z3QuTeYR2WTtDu1Aj1H5XKaoWM8TqHk
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:geolocator/geolocator.dart'; // For location access
-import 'package:mapbox_gl/mapbox_gl.dart'; // For map view after route creation
+import 'package:app_de_dates/widgets/mapbox_map_widget.dart'; // Import the Mapbox map widget
+import 'Route_visualization.dart';
 
 class CreateDateScreen extends StatefulWidget {
   @override
@@ -15,27 +16,17 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
   List<Map<String, dynamic>> searchResults = []; // Store search results
   bool _isRouteCreated = false; // To track if the route is created
   String apiKey = 'AIzaSyA3Z3QuTeYR2WTtDu1Aj1H5XKaoWM8TqHk'; // Google Places API Key
-  Position? _userLocation; // Store user's current location
+  TextEditingController _searchController = TextEditingController(); // Controller for search bar
+  bool _isSearching = false; // Track if the user is searching
 
-  // Fetch user's location to limit search results
-  Future<void> _getUserLocation() async {
-    Position position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
-    setState(() {
-      _userLocation = position;
-    });
-  }
+  // Define a static location for the user's city (example: São Paulo)
+  double userLatitude = -23.5505; // São Paulo latitude
+  double userLongitude = -46.6333; // São Paulo longitude
 
-  @override
-  void initState() {
-    super.initState();
-    _getUserLocation(); // Fetch user's current location on start
-  }
-
-  // Function to handle search with distance restriction
+  // Function to handle search with location bias
   void _performSearch(String query) async {
     setState(() {
+      _isSearching = true; // User started searching
       searchResults.clear();
     });
 
@@ -57,8 +48,8 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
       });
     }
 
-    // Step 2: Query Google Places API for nearby places
-    if (searchResults.isEmpty && _userLocation != null) {
+    // Step 2: If no Firestore results, query Google Places API with location bias
+    if (searchResults.isEmpty) {
       var googlePlacesResults = await _fetchGooglePlaces(query);
       googlePlacesResults.forEach((place) {
         searchResults.add({
@@ -69,15 +60,19 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
       });
     }
 
-    setState(() {});
+    setState(() {
+      _isSearching = false; // Searching done
+    });
   }
 
-  // Fetch results from Google Places API with location and radius
+  // Fetch results from Google Places API with location bias to user's city
   Future<List<dynamic>> _fetchGooglePlaces(String query) async {
-    if (_userLocation == null) return [];
-
     String url =
-        'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=$query&location=${_userLocation!.latitude},${_userLocation!.longitude}&radius=40000&key=$apiKey';
+        'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=$query'
+        '&location=$userLatitude,$userLongitude'  // Bias the search to São Paulo
+        '&radius=50000'  // Restrict the search to a 50 km radius (adjust as needed)
+        '&key=$apiKey';
+
     final response = await http.get(Uri.parse(url));
 
     if (response.statusCode == 200) {
@@ -117,6 +112,8 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
       }
       setState(() {
         selectedStops.add(stop);
+        _searchController.clear(); // Clear search bar after selection
+        searchResults.clear(); // Clear search results after stop selection
       });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -124,38 +121,95 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
     }
   }
 
+  // Handle stop removal
+  void _removeStop(int index) {
+    setState(() {
+      selectedStops.removeAt(index);
+    });
+  }
+
   // Build search results
   Widget _buildSearchResults() {
+    // Only show the widget if there is input in the search bar and there are results
+    if (_searchController.text.isNotEmpty && searchResults.isNotEmpty) {
+      return ListView.builder(
+        shrinkWrap: true,
+        itemCount: searchResults.length,
+        itemBuilder: (context, index) {
+          var result = searchResults[index];
+          return ListTile(
+            title: Text(
+              result['name'],
+              overflow: TextOverflow.ellipsis,  // Ensures one-line display
+              style: TextStyle(fontSize: 16),
+            ),
+            subtitle: Text(
+              result['source'] == 'firestore'
+                  ? result['address']
+                  : 'Resultado do Google',
+              style: TextStyle(fontSize: 14),
+            ),
+            onTap: () {
+              _selectStop(result);
+              FocusScope.of(context).unfocus(); // Hide keyboard after selection
+            },
+          );
+        },
+      );
+    } else {
+      // If the search bar is empty or no results, return an empty widget
+      return SizedBox.shrink();
+    }
+  }
+
+  // Build selected stops with numbering, clean design, and border for separation
+  Widget _buildSelectedStops() {
     return ListView.builder(
       shrinkWrap: true,
-      itemCount: searchResults.length,
+      itemCount: selectedStops.length,
       itemBuilder: (context, index) {
-        var result = searchResults[index];
-        return ListTile(
-          title: Text(result['name']),
-          subtitle: Text(result['source'] == 'firestore'
-              ? result['address']
-              : 'Resultado do Google'),
-          onTap: () {
-            _selectStop(result);
-          },
+        var stop = selectedStops[index];
+        return Container(
+          margin: EdgeInsets.symmetric(vertical: 5),
+          padding: EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.withOpacity(0.5)),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: Colors.redAccent,
+              child: Text((index + 1).toString(),
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+            title: Text(stop['name'],
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            subtitle: Text(stop['address']),
+            trailing: IconButton(
+              icon: Icon(Icons.close, color: Colors.redAccent),
+              onPressed: () {
+                _removeStop(index); // Remove the selected stop
+              },
+            ),
+          ),
         );
       },
     );
   }
 
-  // Build selected stops
-  Widget _buildSelectedStops() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: selectedStops.map((stop) {
-        return ListTile(
-          title: Text(stop['name']),
-          subtitle: stop['source'] == 'firestore'
-              ? Text(stop['address'])
-              : Text('Google Place'),
+  // Button to navigate to the map visualization screen
+  Widget _buildViewMapButton() {
+    return ElevatedButton(
+      onPressed: () {
+        // Navigate to MapVisualizationScreen, passing selected stops
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MapVisualizationScreen(selectedStops: selectedStops),
+          ),
         );
-      }).toList(),
+      },
+      child: Text('Visualizar no Mapa'),
     );
   }
 
@@ -168,6 +222,7 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
               SnackBar(content: Text('Por favor, selecione pelo menos uma parada.')));
           return;
         }
+        // Submit the stops (for future use to save the route)
         setState(() {
           _isRouteCreated = true; // Indicate that the route is created
         });
@@ -176,24 +231,6 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
       },
       child: Text('Criar Rota'),
     );
-  }
-
-  // Show map once the route is created (initially collapsed)
-  Widget _buildMapView() {
-    return _isRouteCreated
-        ? GestureDetector(
-      onTap: () {
-        // Logic to expand the map and show the full route
-      },
-      child: Container(
-        height: 200, // Collapsed map height
-        color: Colors.grey[200],
-        child: Center(
-          child: Text('Visualizar Rota no Mapa'),
-        ),
-      ),
-    )
-        : Container();
   }
 
   @override
@@ -206,19 +243,28 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
         padding: const EdgeInsets.all(8.0),
         child: Column(
           children: [
-            // Search bar
+            // Search bar with clear functionality
             TextField(
+              controller: _searchController,
               decoration: InputDecoration(
                 labelText: 'Procure um lugar...',
                 border: OutlineInputBorder(),
-                suffixIcon: Icon(Icons.search),
+                suffixIcon: IconButton(
+                  icon: Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear(); // Clear the search bar when the clear button is pressed
+                    setState(() {
+                      searchResults.clear(); // Clear search results as well
+                    });
+                  },
+                ),
               ),
               onChanged: (query) {
                 if (query.isNotEmpty) {
                   _performSearch(query);
                 } else {
                   setState(() {
-                    searchResults.clear();
+                    searchResults.clear(); // Clear search results when input is cleared
                   });
                 }
               },
@@ -229,18 +275,19 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
             Text('Paradas Selecionadas:', style: TextStyle(fontSize: 16)),
             Expanded(child: _buildSelectedStops()),
 
-            // Display search results
-            Expanded(flex: 2, child: _buildSearchResults()),
+            // Display search results (only when input is not empty and results are available)
+            _buildSearchResults(),
+
+            // View Map Button
+            _buildViewMapButton(),
 
             // Submit Button
             _buildSubmitButton(),
-
-            // Collapsed Map view for the created route
-            _buildMapView(),
           ],
         ),
       ),
     );
   }
 }
+
 
