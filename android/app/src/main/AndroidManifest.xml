@@ -13,7 +13,7 @@
         <!-- Mapbox Access Token Meta-data -->
         <meta-data
                 android:name="com.mapbox.token"
-                android:value="sk.eyJ1IjoicGF0cmlja2RlcmljIiwiYSI6ImNtMmF0M29mNTBqcmQyaW94Y2hpcXBvd3MifQ.jjuflSQNzTpkhG0Wo3FB2g" /> <!-- Replace with your Mapbox token -->
+                android:value="sk.eyJ1IjoicGF0cmlja2RlcmljIiwiYSI6ImNtMmo1bHY4ZDAxemoya3B4eWdjYjd4bjYifQ.ie9qwYOo7bEjjNFiAGxp2g" /> <!-- Replace with your Mapbox token -->
 
         <!-- Firebase Meta-data -->
         <meta-data

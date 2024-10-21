@@ -3,7 +3,7 @@ import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class MapboxMapWidget extends StatefulWidget {
-  final String styleString;  // Accept the styleString as a parameter
+  final String styleString;
 
   MapboxMapWidget({required this.styleString});
 
@@ -12,7 +12,7 @@ class MapboxMapWidget extends StatefulWidget {
 }
 
 class _MapboxMapWidgetState extends State<MapboxMapWidget> {
-  late MapboxMapController _mapController;
+  MapboxMapController? _mapController;  // Make the controller nullable
   bool _locationPermissionGranted = false;
 
   @override
@@ -21,7 +21,6 @@ class _MapboxMapWidgetState extends State<MapboxMapWidget> {
     _requestLocationPermission();
   }
 
-  // Request location permissions
   Future<void> _requestLocationPermission() async {
     if (await Permission.location.isGranted) {
       setState(() {
@@ -39,7 +38,6 @@ class _MapboxMapWidgetState extends State<MapboxMapWidget> {
     }
   }
 
-  // Initialize the map controller
   void _onMapCreated(MapboxMapController controller) {
     _mapController = controller;
   }
@@ -51,10 +49,10 @@ class _MapboxMapWidgetState extends State<MapboxMapWidget> {
       width: MediaQuery.of(context).size.width,
       child: _locationPermissionGranted
           ? MapboxMap(
-        accessToken: 'sk.eyJ1IjoicGF0cmlja2RlcmljIiwiYSI6ImNtMmF0M29mNTBqcmQyaW94Y2hpcXBvd3MifQ.jjuflSQNzTpkhG0Wo3FB2g',  // Replace with your access token
-        styleString: widget.styleString,  // Use the passed styleString
+        accessToken: 'sk.eyJ1IjoicGF0cmlja2RlcmljIiwiYSI6ImNtMmo1bHY4ZDAxemoya3B4eWdjYjd4bjYifQ.ie9qwYOo7bEjjNFiAGxp2g',
+        styleString: widget.styleString,
         initialCameraPosition: CameraPosition(
-          target: LatLng(37.7749, -122.4194),  // Example coordinates for San Francisco
+          target: LatLng(37.7749, -122.4194),  // Example coordinates
           zoom: 10,
         ),
         onMapCreated: _onMapCreated,
@@ -67,8 +65,10 @@ class _MapboxMapWidgetState extends State<MapboxMapWidget> {
 
   @override
   void dispose() {
+    // Check if _mapController is initialized before calling dispose
     if (_mapController != null) {
-      _mapController.dispose();
+      _mapController!.dispose();
+      _mapController = null;  // Set to null after disposal
     }
     super.dispose();
   }
