@@ -198,40 +198,61 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
   }
 
   // Button to navigate to the map visualization screen
+  // Assuming you have routeId stored after saving the route to Firestore
+  String? routeId; // Add this variable to track the route ID
+
+// Update your _buildViewMapButton to use routeId
   Widget _buildViewMapButton() {
     return ElevatedButton(
       onPressed: () {
-        // Navigate to MapVisualizationScreen, passing selected stops
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => MapVisualizationScreen(selectedStops: selectedStops),
-          ),
-        );
+        if (routeId != null) {
+          // Navigate to MapVisualizationScreen, passing the routeId
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => MapVisualizationScreen(routeId: routeId!), // Pass the routeId
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Crie a rota primeiro antes de visualizar no mapa.')),
+          );
+        }
       },
       child: Text('Visualizar no Mapa'),
     );
   }
 
   // Submit Button (for saving the route to Firestore)
+  // Submit Button (for saving the route to Firestore)
+  // Submit Button (for saving the route to Firestore)
   Widget _buildSubmitButton() {
     return ElevatedButton(
-      onPressed: () {
+      onPressed: () async {
         if (selectedStops.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Por favor, selecione pelo menos uma parada.')));
           return;
         }
-        // Submit the stops (for future use to save the route)
-        setState(() {
-          _isRouteCreated = true; // Indicate that the route is created
+
+        // Save route to Firestore and store the routeId
+        DocumentReference routeRef = await FirebaseFirestore.instance.collection('routes').add({
+          'stops': selectedStops,
+          'created_at': Timestamp.now(),
         });
+
+        setState(() {
+          _isRouteCreated = true;
+          routeId = routeRef.id; // Store the generated route ID
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Rota criada com sucesso!')));
       },
       child: Text('Criar Rota'),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
