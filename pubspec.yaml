@@ -45,6 +45,7 @@ dependencies:
   image_picker: ^1.1.2
   intl: ^0.19.0
   http: ^1.2.2
+  geolocator: ^13.0.1
 
 
 
@@ -71,6 +72,8 @@ flutter:
   assets:
     - assets/google_icon.png
     - assets/map_icons/custom-marker.png
+    - assets/love_box.png
+    - assets/map_icons/heart.png
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
