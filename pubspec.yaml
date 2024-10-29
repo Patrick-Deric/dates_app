@@ -75,6 +75,11 @@ flutter:
     - assets/map_icons/custom-marker.png
     - assets/love_box.png
     - assets/map_icons/heart.png
+    - assets/map_icons/arvore.png
+    - assets/map_icons/confete.png
+    - assets/map_icons/corrida.png
+    - assets/map_icons/familia.png
+    - assets/map_icons/livro.png
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

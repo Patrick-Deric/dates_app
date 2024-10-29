@@ -1,16 +1,16 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:permission_handler/permission_handler.dart' as permHandler;
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../auth/login_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/services.dart';
 import 'dart:typed_data';
-
-import 'criar_rota.dart';
+import 'package:flutter/services.dart';
+import '../auth/login_page.dart';
 import 'favourites.dart';
 import 'profile.dart';
+import 'criar_rota.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -21,10 +21,19 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _locationPermissionGranted = false;
   int _selectedIndex = 0;
   String _mapStyle = MapboxStyles.MAPBOX_STREETS;
-  LatLng initialPosition = LatLng(-23.5505, -46.6333); // Default coordinates
-  LatLng? userPosition;
+  LatLng initialPosition = LatLng(-23.5505, -46.6333); // São Paulo coordinates by default
   MapboxMapController? _mapController;
   List<Map<String, dynamic>> routes = [];
+
+  // Map of icons for each category
+  final Map<String, String> categoryIcons = {
+    'Date Romântico': 'assets/map_icons/heart.png',
+    'Date Cultural': 'assets/map_icons/livro.png',
+    'Date ao Ar Livre': 'assets/map_icons/arvore.png',
+    'Date Familiar': 'assets/map_icons/familia.png',
+    'Date Atividade Fisica': 'assets/map_icons/corrida.png',
+    'Date Festa': 'assets/map_icons/confete.png',
+  };
 
   @override
   void initState() {
@@ -38,25 +47,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (status.isDenied) {
       status = await permHandler.Permission.location.request();
     }
+
     if (status.isGranted) {
       setState(() {
         _locationPermissionGranted = true;
       });
-      await _updateUserPosition();
     }
-  }
-
-  Future<void> _updateUserPosition() async {
-    LatLng currentLocation = await _getCurrentLocationFromMapbox();
-    setState(() {
-      userPosition = currentLocation;
-      initialPosition = currentLocation;
-    });
-  }
-
-  Future<LatLng> _getCurrentLocationFromMapbox() async {
-    // Replace this with actual location retrieval code.
-    return LatLng(-23.5515, -46.6334);
   }
 
   Future<void> _fetchRoutes() async {
@@ -75,48 +71,43 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _loadCustomHeartIcon() async {
+  Future<void> _loadIconForCategory(String iconName) async {
     try {
-      ByteData byteData = await rootBundle.load('assets/map_icons/heart.png');
+      ByteData byteData = await rootBundle.load(iconName);
       Uint8List imageBytes = byteData.buffer.asUint8List();
-      await _mapController?.addImage('heart-icon', imageBytes);
+      await _mapController?.addImage(iconName, imageBytes);
     } catch (e) {
-      print('Error loading heart icon: $e');
+      print('Error loading icon for $iconName: $e');
     }
   }
 
+  // Add icons to the map based on route category
   void _addRouteIcons() async {
     if (_mapController == null) return;
-    await _loadCustomHeartIcon();
+
+    // Load icons for each category
+    for (String icon in categoryIcons.values) {
+      await _loadIconForCategory(icon);
+    }
+
+    // Display icons on the map
     for (var route in routes) {
       if (route['stops'].isNotEmpty) {
         final firstStop = route['stops'][0];
-        final lat = firstStop['lat'];
-        final lng = firstStop['lng'];
-        if (lat != null && lng != null) {
-          try {
-            _mapController?.addSymbol(
-              SymbolOptions(
-                geometry: LatLng(lat, lng),
-                iconImage: 'heart-icon',
-                iconSize: 2.0,
-              ),
-            );
-          } catch (e) {
-            print('Error adding symbol: $e');
-          }
+        final category = route['category'] ?? 'default';
+        final iconImage = categoryIcons[category] ?? 'assets/map_icons/default.png';
+
+        if (firstStop['lat'] != null && firstStop['lng'] != null) {
+          _mapController?.addSymbol(
+            SymbolOptions(
+              geometry: LatLng(firstStop['lat'], firstStop['lng']),
+              iconImage: iconImage,
+              iconSize: 2.0,
+            ),
+          );
         }
       }
     }
-  }
-
-  double _calculateDistance(LatLng pos1, LatLng pos2) {
-    const p = 0.017453292519943295;
-    final a = 0.5 -
-        cos((pos2.latitude - pos1.latitude) * p) / 2 +
-        cos(pos1.latitude * p) * cos(pos2.latitude * p) *
-            (1 - cos((pos2.longitude - pos1.longitude) * p)) / 2;
-    return 12742 * asin(sqrt(a)); // Distance in km
   }
 
   void _onIconTapped(Map<String, dynamic> route) {
@@ -140,11 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     'Date Information',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   SizedBox(height: 10),
                   Expanded(
@@ -154,7 +141,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         var stop = route['stops'][index];
                         return ListTile(
                           title: Text(stop['name'], style: TextStyle(color: Colors.white)),
-                          subtitle: Text('Lat: ${stop['lat']}, Lng: ${stop['lng']}', style: TextStyle(color: Colors.white70)),
+                          subtitle: Text(
+                              'Lat: ${stop['lat']}, Lng: ${stop['lng']}', style: TextStyle(color: Colors.white70)),
                         );
                       },
                     ),
@@ -170,22 +158,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _drawRouteOnMap(List<dynamic> stops) {
     _mapController?.clearSymbols();
+
     for (var stop in stops) {
       _mapController?.addSymbol(SymbolOptions(
         geometry: LatLng(stop['lat'], stop['lng']),
-        iconImage: 'heart-icon',
+        iconImage: 'assets/map_icons/heart.png', // Change the icon if needed based on stop
         iconSize: 1.5,
       ));
     }
   }
 
   List<Widget> _buildNearbyRoutesCards() {
-    if (routes.isEmpty || userPosition == null) return [];
-
+    if (routes.isEmpty) return [];
     return routes.where((route) {
       final firstStop = route['stops'][0];
       final distance = _calculateDistance(
-        userPosition!, // Use actual user position
+        initialPosition,
         LatLng(firstStop['lat'], firstStop['lng']),
       );
       return distance <= 15;
@@ -208,9 +196,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }).toList();
   }
 
+  double _calculateDistance(LatLng pos1, LatLng pos2) {
+    const p = 0.017453292519943295;
+    final a = 0.5 - cos((pos2.latitude - pos1.latitude) * p) / 2 +
+        cos(pos1.latitude * p) * cos(pos2.latitude * p) *
+            (1 - cos((pos2.longitude - pos1.longitude) * p)) / 2;
+    return 12742 * asin(sqrt(a)); // Distance in km
+  }
+
   void _onMapCreated(MapboxMapController controller) {
     _mapController = controller;
     _addRouteIcons();
+
     _mapController?.onSymbolTapped.add((symbol) {
       final geometry = symbol.options.geometry;
       if (geometry != null) {
@@ -252,9 +249,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     } catch (e) {
       print('Error logging out: $e');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Erro ao fazer logout.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao fazer logout.')));
     }
   }
 
@@ -290,10 +285,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ? MapboxMap(
           accessToken: 'sk.eyJ1IjoicGF0cmlja2RlcmljIiwiYSI6ImNtMmo1bHY4ZDAxemoya3B4eWdjYjd4bjYifQ.ie9qwYOo7bEjjNFiAGxp2g',
           styleString: _mapStyle,
-          initialCameraPosition: CameraPosition(
-            target: initialPosition,
-            zoom: 12,
-          ),
+          initialCameraPosition: CameraPosition(target: initialPosition, zoom: 12),
           onMapCreated: _onMapCreated,
           myLocationEnabled: true,
           myLocationTrackingMode: MyLocationTrackingMode.Tracking,
@@ -318,21 +310,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   children: [
                     SizedBox(height: 10),
-                    Container(
-                      height: 5,
-                      width: 50,
-                      color: Colors.grey[300],
-                    ),
+                    Container(height: 5, width: 50, color: Colors.grey[300]),
                     SizedBox(height: 20),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                      child: _buildSearchBar(),
-                    ),
+                    Padding(padding: const EdgeInsets.symmetric(horizontal: 20.0), child: _buildSearchBar()),
                     SizedBox(height: 10),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                      child: _buildCategories(),
-                    ),
+                    Padding(padding: const EdgeInsets.symmetric(horizontal: 10.0), child: _buildCategories()),
                     SizedBox(height: 10),
                   ],
                 ),
@@ -363,10 +345,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'DateFindr',
-          style: TextStyle(color: Colors.white),
-        ),
+        title: Text('DateFindr', style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.redAccent,
         iconTheme: IconThemeData(color: Colors.white),
         leading: Builder(
@@ -385,13 +364,8 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: EdgeInsets.zero,
           children: [
             DrawerHeader(
-              decoration: BoxDecoration(
-                color: Colors.redAccent,
-              ),
-              child: Text(
-                'Menu',
-                style: TextStyle(color: Colors.white, fontSize: 24),
-              ),
+              decoration: BoxDecoration(color: Colors.redAccent),
+              child: Text('Menu', style: TextStyle(color: Colors.white, fontSize: 24)),
             ),
             ListTile(
               leading: Icon(Icons.map, color: Colors.black),
@@ -411,9 +385,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      body: SafeArea(
-        child: _buildPage(_selectedIndex),
-      ),
+      body: SafeArea(child: _buildPage(_selectedIndex)),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (int index) {
@@ -429,22 +401,10 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedLabelStyle: TextStyle(color: Colors.redAccent),
         unselectedLabelStyle: TextStyle(color: Colors.black54),
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.map),
-            label: 'Explorar',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.add),
-            label: 'Criar Date',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.favorite),
-            label: 'Favoritos',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Perfil',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Explorar'),
+          BottomNavigationBarItem(icon: Icon(Icons.add), label: 'Criar Date'),
+          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Favoritos'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
         ],
       ),
     );

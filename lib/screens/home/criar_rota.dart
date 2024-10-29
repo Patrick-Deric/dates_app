@@ -1,9 +1,8 @@
-// AIzaSyA3Z3QuTeYR2WTtDu1Aj1H5XKaoWM8TqHk
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:app_de_dates/widgets/mapbox_map_widget.dart'; // Import the Mapbox map widget
+import 'package:app_de_dates/widgets/mapbox_map_widget.dart';
 import 'Route_visualization.dart';
 
 class CreateDateScreen extends StatefulWidget {
@@ -12,25 +11,34 @@ class CreateDateScreen extends StatefulWidget {
 }
 
 class _CreateDateScreenState extends State<CreateDateScreen> {
-  List<Map<String, dynamic>> selectedStops = []; // Store selected stops
-  List<Map<String, dynamic>> searchResults = []; // Store search results
-  bool _isRouteCreated = false; // To track if the route is created
-  String apiKey = 'AIzaSyA3Z3QuTeYR2WTtDu1Aj1H5XKaoWM8TqHk'; // Google Places API Key
-  TextEditingController _searchController = TextEditingController(); // Controller for search bar
-  bool _isSearching = false; // Track if the user is searching
+  List<Map<String, dynamic>> selectedStops = [];
+  List<Map<String, dynamic>> searchResults = [];
+  bool _isRouteCreated = false;
+  String apiKey = 'AIzaSyA3Z3QuTeYR2WTtDu1Aj1H5XKaoWM8TqHk';
+  TextEditingController _searchController = TextEditingController();
+  bool _isSearching = false;
 
-  // Define a static location for the user's city (example: São Paulo)
+  // Categories for the date
+  String? selectedCategory;
+  final List<String> categories = [
+    'Date Romântico',
+    'Date Cultural',
+    'Date ao Ar Livre',
+    'Date Familiar',
+    'Date Atividade Fisica',
+    'Date Festa'
+  ];
+
+  // Static location for the user's city
   double userLatitude = -23.5505; // São Paulo latitude
   double userLongitude = -46.6333; // São Paulo longitude
 
-  // Function to handle search with location bias
-  void _performSearch(String query) async {
+  Future<void> _performSearch(String query) async {
     setState(() {
-      _isSearching = true; // User started searching
+      _isSearching = true;
       searchResults.clear();
     });
 
-    // Step 1: Check Firestore for custom businesses
     var firestoreResults = await FirebaseFirestore.instance
         .collection('businesses')
         .where('businessName', isGreaterThanOrEqualTo: query)
@@ -48,7 +56,6 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
       });
     }
 
-    // Step 2: If no Firestore results, query Google Places API with location bias
     if (searchResults.isEmpty) {
       var googlePlacesResults = await _fetchGooglePlaces(query);
       googlePlacesResults.forEach((place) {
@@ -61,16 +68,15 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
     }
 
     setState(() {
-      _isSearching = false; // Searching done
+      _isSearching = false;
     });
   }
 
-  // Fetch results from Google Places API with location bias to user's city
   Future<List<dynamic>> _fetchGooglePlaces(String query) async {
     String url =
         'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=$query'
-        '&location=$userLatitude,$userLongitude'  // Bias the search to São Paulo
-        '&radius=50000'  // Restrict the search to a 50 km radius (adjust as needed)
+        '&location=$userLatitude,$userLongitude'
+        '&radius=50000'
         '&key=$apiKey';
 
     final response = await http.get(Uri.parse(url));
@@ -83,7 +89,6 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
     }
   }
 
-  // Fetch place details from Google Places
   Future<Map<String, dynamic>> _fetchPlaceDetails(String placeId) async {
     String url =
         'https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$apiKey';
@@ -103,17 +108,16 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
     }
   }
 
-  // Handle stop selection
   void _selectStop(Map<String, dynamic> stop) async {
     if (selectedStops.length < 5) {
       if (stop['source'] == 'google') {
         var details = await _fetchPlaceDetails(stop['placeId']);
-        stop.addAll(details); // Add details to the stop
+        stop.addAll(details);
       }
       setState(() {
         selectedStops.add(stop);
-        _searchController.clear(); // Clear search bar after selection
-        searchResults.clear(); // Clear search results after stop selection
+        _searchController.clear();
+        searchResults.clear();
       });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -121,16 +125,13 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
     }
   }
 
-  // Handle stop removal
   void _removeStop(int index) {
     setState(() {
       selectedStops.removeAt(index);
     });
   }
 
-  // Build search results
   Widget _buildSearchResults() {
-    // Only show the widget if there is input in the search bar and there are results
     if (_searchController.text.isNotEmpty && searchResults.isNotEmpty) {
       return ListView.builder(
         shrinkWrap: true,
@@ -140,7 +141,7 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
           return ListTile(
             title: Text(
               result['name'],
-              overflow: TextOverflow.ellipsis,  // Ensures one-line display
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 16),
             ),
             subtitle: Text(
@@ -151,18 +152,16 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
             ),
             onTap: () {
               _selectStop(result);
-              FocusScope.of(context).unfocus(); // Hide keyboard after selection
+              FocusScope.of(context).unfocus();
             },
           );
         },
       );
     } else {
-      // If the search bar is empty or no results, return an empty widget
       return SizedBox.shrink();
     }
   }
 
-  // Build selected stops with numbering, clean design, and border for separation
   Widget _buildSelectedStops() {
     return ListView.builder(
       shrinkWrap: true,
@@ -188,7 +187,7 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
             trailing: IconButton(
               icon: Icon(Icons.close, color: Colors.redAccent),
               onPressed: () {
-                _removeStop(index); // Remove the selected stop
+                _removeStop(index);
               },
             ),
           ),
@@ -197,20 +196,16 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
     );
   }
 
-  // Button to navigate to the map visualization screen
-  // Assuming you have routeId stored after saving the route to Firestore
-  String? routeId; // Add this variable to track the route ID
+  String? routeId;
 
-// Update your _buildViewMapButton to use routeId
   Widget _buildViewMapButton() {
     return ElevatedButton(
       onPressed: () {
         if (routeId != null) {
-          // Navigate to MapVisualizationScreen, passing the routeId
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => MapVisualizationScreen(routeId: routeId!), // Pass the routeId
+              builder: (context) => MapVisualizationScreen(routeId: routeId!),
             ),
           );
         } else {
@@ -223,9 +218,6 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
     );
   }
 
-  // Submit Button (for saving the route to Firestore)
-  // Submit Button (for saving the route to Firestore)
-  // Submit Button (for saving the route to Firestore)
   Widget _buildSubmitButton() {
     return ElevatedButton(
       onPressed: () async {
@@ -235,15 +227,21 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
           return;
         }
 
-        // Save route to Firestore and store the routeId
+        if (selectedCategory == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Por favor, selecione um tipo de date.')));
+          return;
+        }
+
         DocumentReference routeRef = await FirebaseFirestore.instance.collection('routes').add({
           'stops': selectedStops,
           'created_at': Timestamp.now(),
+          'category': selectedCategory,
         });
 
         setState(() {
           _isRouteCreated = true;
-          routeId = routeRef.id; // Store the generated route ID
+          routeId = routeRef.id;
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -253,6 +251,31 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
     );
   }
 
+  Widget _buildCategorySelection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Selecione o Tipo de Date:',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        Wrap(
+          spacing: 10,
+          children: categories.map((category) {
+            return ChoiceChip(
+              label: Text(category),
+              selected: selectedCategory == category,
+              onSelected: (bool selected) {
+                setState(() {
+                  selectedCategory = selected ? category : null;
+                });
+              },
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -264,7 +287,6 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
         padding: const EdgeInsets.all(8.0),
         child: Column(
           children: [
-            // Search bar with clear functionality
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
@@ -273,9 +295,9 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
                 suffixIcon: IconButton(
                   icon: Icon(Icons.clear),
                   onPressed: () {
-                    _searchController.clear(); // Clear the search bar when the clear button is pressed
+                    _searchController.clear();
                     setState(() {
-                      searchResults.clear(); // Clear search results as well
+                      searchResults.clear();
                     });
                   },
                 ),
@@ -285,24 +307,17 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
                   _performSearch(query);
                 } else {
                   setState(() {
-                    searchResults.clear(); // Clear search results when input is cleared
+                    searchResults.clear();
                   });
                 }
               },
             ),
             SizedBox(height: 10),
-
-            // Display selected stops
             Text('Paradas Selecionadas:', style: TextStyle(fontSize: 16)),
             Expanded(child: _buildSelectedStops()),
-
-            // Display search results (only when input is not empty and results are available)
             _buildSearchResults(),
-
-            // View Map Button
+            _buildCategorySelection(),
             _buildViewMapButton(),
-
-            // Submit Button
             _buildSubmitButton(),
           ],
         ),
@@ -310,5 +325,3 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
     );
   }
 }
-
-
