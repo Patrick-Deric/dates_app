@@ -14,7 +14,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   File? _profileImage;
-  String? _profileImageUrl; // Store the profile image URL
+  String? _profileImageUrl;
   final _picker = ImagePicker();
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
@@ -23,8 +23,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   final _nameController = TextEditingController();
   DateTime? _selectedDate;
-
-  bool _isEditing = false; // To track if the user is editing
+  bool _isEditing = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -35,13 +35,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadUserData() async {
     if (user != null) {
-      final userDoc = await _firestore.collection('users').doc(user!.uid).get();
-      if (userDoc.exists) {
-        setState(() {
-          _nameController.text = userDoc['name'] ?? '';
-          _selectedDate = userDoc['birthdate']?.toDate() ?? DateTime.now();
-          _profileImageUrl = userDoc['profileImageUrl']; // Load profile image URL
-        });
+      try {
+        final userDoc =
+        await _firestore.collection('users').doc(user!.uid).get();
+        if (userDoc.exists) {
+          setState(() {
+            _nameController.text = userDoc['name'] ?? '';
+            _selectedDate =
+                userDoc['birthdate']?.toDate() ?? DateTime(2000, 1, 1);
+            _profileImageUrl = userDoc['profileImageUrl'];
+          });
+        }
+      } catch (e) {
+        print('Error loading user data: $e');
       }
     }
   }
@@ -58,26 +64,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _uploadImageToFirebase(BuildContext context) async {
     if (_profileImage != null && user != null) {
+      setState(() {
+        _isLoading = true;
+      });
       try {
         String fileName = basename(_profileImage!.path);
-        Reference storageRef = _storage.ref().child('profile_images/${user!.uid}/$fileName');
+        Reference storageRef =
+        _storage.ref().child('profile_images/${user!.uid}/$fileName');
         UploadTask uploadTask = storageRef.putFile(_profileImage!);
         TaskSnapshot snapshot = await uploadTask;
         String imageUrl = await snapshot.ref.getDownloadURL();
 
-        // Save the profile image URL in Firestore
         await _firestore.collection('users').doc(user!.uid).update({
           'profileImageUrl': imageUrl,
         });
 
         setState(() {
-          _profileImageUrl = imageUrl; // Update the UI with the new profile image URL
+          _profileImageUrl = imageUrl;
+          _isLoading = false;
         });
 
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Imagem de perfil atualizada com sucesso!'),
         ));
       } catch (e) {
+        setState(() {
+          _isLoading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Erro ao fazer upload da imagem: $e'),
         ));
@@ -88,11 +101,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _pickDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate ?? DateTime.now(),
+      initialDate: _selectedDate ?? DateTime(2000, 1, 1),
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
     );
-    if (picked != null && picked != _selectedDate) {
+    if (picked != null) {
       setState(() {
         _selectedDate = picked;
       });
@@ -101,25 +114,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _saveProfile(BuildContext context) async {
     if (user != null) {
-      await _firestore.collection('users').doc(user!.uid).update({
-        'name': _nameController.text,
-        'birthdate': _selectedDate,
-      });
       setState(() {
-        _isEditing = false; // Exit editing mode
+        _isLoading = true;
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Perfil atualizado com sucesso')));
+      try {
+        await _firestore.collection('users').doc(user!.uid).update({
+          'name': _nameController.text,
+          'birthdate': _selectedDate,
+        });
+        setState(() {
+          _isEditing = false;
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Perfil atualizado com sucesso')));
+      } catch (e) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao atualizar o perfil: $e')),
+        );
+      }
     }
   }
 
-  // Toggle edit mode
   void _toggleEditMode() {
     setState(() {
       _isEditing = !_isEditing;
     });
   }
 
-  // Function to capitalize the first letter of each word
   String capitalizeName(String name) {
     return name.split(' ').map((word) {
       if (word.isEmpty) return word;
@@ -133,10 +158,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         title: Text('Perfil'),
         actions: [
-          // Show "Editar" or "Salvar" button depending on editing mode
-          TextButton(
-            onPressed: _isEditing ? () => _saveProfile(context) : _toggleEditMode,
-            child: Text(_isEditing ? 'Salvar' : 'Editar', style: TextStyle(color: Colors.black)),
+          _isLoading
+              ? Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: CircularProgressIndicator(color: Colors.white),
+          )
+              : TextButton(
+            onPressed:
+            _isEditing ? () => _saveProfile(context) : _toggleEditMode,
+            child: Text(
+              _isEditing ? 'Salvar' : 'Editar',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -145,7 +178,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: SingleChildScrollView(
           child: Column(
             children: [
-              // Profile image and name section with birthdate and email
               Card(
                 elevation: 5,
                 shape: RoundedRectangleBorder(
@@ -155,15 +187,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   padding: const EdgeInsets.all(20.0),
                   child: Row(
                     children: [
-                      CircleAvatar(
-                        radius: 40,
-                        backgroundColor: Colors.grey.shade200,
-                        backgroundImage: _profileImage != null
-                            ? FileImage(_profileImage!)
-                            : (_profileImageUrl != null ? NetworkImage(_profileImageUrl!) : null),
-                        child: _profileImage == null && _profileImageUrl == null
-                            ? Icon(Icons.person, size: 40)
-                            : null,
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          CircleAvatar(
+                            radius: 40,
+                            backgroundColor: Colors.grey.shade200,
+                            backgroundImage: _profileImage != null
+                                ? FileImage(_profileImage!)
+                                : (_profileImageUrl != null
+                                ? NetworkImage(_profileImageUrl!)
+                                : null),
+                            child: _profileImage == null &&
+                                _profileImageUrl == null
+                                ? Icon(Icons.person, size: 40)
+                                : null,
+                          ),
+                          if (_isEditing)
+                            IconButton(
+                              icon: Icon(Icons.camera_alt, color: Colors.white),
+                              onPressed: () => _pickImage(context),
+                            ),
+                        ],
                       ),
                       SizedBox(width: 20),
                       Expanded(
@@ -174,7 +219,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               _nameController.text.isNotEmpty
                                   ? capitalizeName(_nameController.text)
                                   : 'Nome Completo',
-                              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                  fontSize: 22, fontWeight: FontWeight.bold),
                             ),
                             SizedBox(height: 10),
                             Text(
@@ -184,7 +230,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             SizedBox(height: 10),
                             Text(
                               _selectedDate != null
-                                  ? DateFormat('dd/MM/yyyy').format(_selectedDate!)
+                                  ? DateFormat('dd/MM/yyyy')
+                                  .format(_selectedDate!)
                                   : 'Data de Nascimento',
                               style: TextStyle(color: Colors.grey),
                             ),
@@ -195,50 +242,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
-              SizedBox(height: 20),
-
-              // Edit Profile Picture Button (only visible in editing mode)
               if (_isEditing)
-                ElevatedButton.icon(
-                  icon: Icon(Icons.camera_alt),
-                  label: Text('Alterar Foto de Perfil'),
-                  onPressed: () => _pickImage(context),
-                ),
-
-              if (_isEditing) ...[
-                SizedBox(height: 20),
-
-                // Display or Edit Name (only visible in editing mode)
-                TextField(
-                  controller: _nameController,
-                  enabled: _isEditing,
-                  decoration: InputDecoration(
-                    labelText: 'Nome Completo',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                  ),
-                ),
-                SizedBox(height: 20),
-
-                // Display or Edit Date of Birth (only visible in editing mode)
-                GestureDetector(
-                  onTap: _isEditing ? () => _pickDate(context) : null,
-                  child: AbsorbPointer(
-                    child: TextField(
+                Column(
+                  children: [
+                    SizedBox(height: 20),
+                    TextField(
+                      controller: _nameController,
                       decoration: InputDecoration(
-                        labelText: _selectedDate != null
-                            ? DateFormat('dd/MM/yyyy').format(_selectedDate!)
-                            : 'Data de Nascimento',
+                        labelText: 'Nome Completo',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
                         ),
                       ),
                     ),
-                  ),
+                    SizedBox(height: 20),
+                    GestureDetector(
+                      onTap: _isEditing ? () => _pickDate(context) : null,
+                      child: AbsorbPointer(
+                        child: TextField(
+                          decoration: InputDecoration(
+                            labelText: _selectedDate != null
+                                ? DateFormat('dd/MM/yyyy')
+                                .format(_selectedDate!)
+                                : 'Data de Nascimento',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                SizedBox(height: 20),
-              ],
             ],
           ),
         ),
@@ -246,4 +281,3 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
-

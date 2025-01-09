@@ -1,16 +1,16 @@
 import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:permission_handler/permission_handler.dart' as permHandler;
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:typed_data';
-import 'package:flutter/services.dart';
 import '../auth/login_page.dart';
+import 'Route_visualization.dart';
 import 'favourites.dart';
 import 'profile.dart';
 import 'criar_rota.dart';
+import 'package:url_launcher/url_launcher.dart'; // For Google Maps link
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -24,8 +24,9 @@ class _HomeScreenState extends State<HomeScreen> {
   LatLng initialPosition = LatLng(-23.5505, -46.6333); // São Paulo coordinates by default
   MapboxMapController? _mapController;
   List<Map<String, dynamic>> routes = [];
+  String selectedFilter = 'Todos';
 
-  // Map of icons for each category
+  // Icons based on categories
   final Map<String, String> categoryIcons = {
     'Date Romântico': 'assets/map_icons/heart.png',
     'Date Cultural': 'assets/map_icons/livro.png',
@@ -34,6 +35,16 @@ class _HomeScreenState extends State<HomeScreen> {
     'Date Atividade Fisica': 'assets/map_icons/corrida.png',
     'Date Festa': 'assets/map_icons/confete.png',
   };
+
+  final List<String> filters = [
+    'Todos',
+    'Date Romântico',
+    'Date Cultural',
+    'Date ao Ar Livre',
+    'Date Familiar',
+    'Date Atividade Fisica',
+    'Date Festa',
+  ];
 
   @override
   void initState() {
@@ -81,20 +92,17 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Add icons to the map based on route category
   void _addRouteIcons() async {
     if (_mapController == null) return;
 
-    // Load icons for each category
     for (String icon in categoryIcons.values) {
       await _loadIconForCategory(icon);
     }
 
-    // Display icons on the map
     for (var route in routes) {
       if (route['stops'].isNotEmpty) {
         final firstStop = route['stops'][0];
-        final category = route['category'] ?? 'default';
+        final category = route['category'] ?? 'Todos';
         final iconImage = categoryIcons[category] ?? 'assets/map_icons/default.png';
 
         if (firstStop['lat'] != null && firstStop['lng'] != null) {
@@ -110,98 +118,86 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _onIconTapped(Map<String, dynamic> route) {
-    if (route.isNotEmpty) {
-      _drawRouteOnMap(route['stops']);
-      showModalBottomSheet(
-        context: context,
-        builder: (context) {
-          return Container(
-            height: 300,
-            decoration: BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/love_box.png'),
-                fit: BoxFit.cover,
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Date Information',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                  SizedBox(height: 10),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: route['stops'].length,
-                      itemBuilder: (context, index) {
-                        var stop = route['stops'][index];
-                        return ListTile(
-                          title: Text(stop['name'], style: TextStyle(color: Colors.white)),
-                          subtitle: Text(
-                              'Lat: ${stop['lat']}, Lng: ${stop['lng']}', style: TextStyle(color: Colors.white70)),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
+  Future<void> _logout() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => LoginPage()),
       );
+    } catch (e) {
+      print('Error logging out: $e');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao fazer logout.')));
     }
   }
 
-  void _drawRouteOnMap(List<dynamic> stops) {
-    _mapController?.clearSymbols();
+  void _showRouteVisualization(String routeId) {
+    print('Navigating to visualization for route ID: $routeId');
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MapVisualizationScreen(routeId: routeId),
+      ),
+    );
+  }
 
-    for (var stop in stops) {
-      _mapController?.addSymbol(SymbolOptions(
-        geometry: LatLng(stop['lat'], stop['lng']),
-        iconImage: 'assets/map_icons/heart.png', // Change the icon if needed based on stop
-        iconSize: 1.5,
-      ));
+
+  void _openInGoogleMaps(Map<String, dynamic> route) {
+    if (route['stops'] != null && route['stops'].isNotEmpty) {
+      final stops = List<Map<String, dynamic>>.from(route['stops']);
+      final origin = '${stops.first['lat']},${stops.first['lng']}';
+      final destination = '${stops.last['lat']},${stops.last['lng']}';
+      final waypoints = stops
+          .sublist(1, stops.length - 1)
+          .map((stop) => '${stop['lat']},${stop['lng']}')
+          .join('|');
+
+      final googleMapsUrl =
+          'https://www.google.com/maps/dir/?api=1&origin=$origin&destination=$destination&waypoints=$waypoints';
+
+      launch(googleMapsUrl);
     }
   }
 
   List<Widget> _buildNearbyRoutesCards() {
-    if (routes.isEmpty) return [];
-    return routes.where((route) {
-      final firstStop = route['stops'][0];
-      final distance = _calculateDistance(
-        initialPosition,
-        LatLng(firstStop['lat'], firstStop['lng']),
-      );
-      return distance <= 15;
-    }).map((route) {
-      var duration = (route['duration'] ?? 0) / 60;
+    if (routes.isEmpty) {
+      return [Text('Nenhuma rota encontrada.', style: TextStyle(color: Colors.grey))];
+    }
+
+    final filteredRoutes = routes.where((route) {
+      final category = route['category'] ?? 'Todos';
+      return selectedFilter == 'Todos' || category == selectedFilter;
+    }).toList();
+
+    if (filteredRoutes.isEmpty) {
+      return [Text('Nenhuma rota encontrada para o filtro selecionado.', style: TextStyle(color: Colors.grey))];
+    }
+
+    return filteredRoutes.map((route) {
+      // Get the icon for the route's category
+      final category = route['category'] ?? 'Todos';
+      final iconPath = categoryIcons[category] ?? 'assets/map_icons/default.png';
+
       return Card(
         margin: EdgeInsets.all(10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         elevation: 3,
         child: ListTile(
-          leading: Icon(Icons.date_range, color: Colors.redAccent),
-          title: Text(route['stops'][0]['name']),
-          subtitle: Text(
-            'Stops: ${route['stops'].length}, Duration: ${duration.toStringAsFixed(0)} mins',
+          leading: Image.asset(
+            iconPath, // Use the same icon paths as the map
+            width: 40,
+            height: 40,
           ),
-          trailing: Icon(Icons.arrow_forward),
-          onTap: () => _onIconTapped(route),
+          title: Text(route['stops'][0]['name']),
+          subtitle: Text('Categoria: ${route['category']}'),
+          trailing: IconButton(
+            icon: Icon(Icons.directions),
+            onPressed: () => _openInGoogleMaps(route),
+          ),
+          onTap: () => _showRouteVisualization(route['id']),
         ),
       );
     }).toList();
-  }
-
-  double _calculateDistance(LatLng pos1, LatLng pos2) {
-    const p = 0.017453292519943295;
-    final a = 0.5 - cos((pos2.latitude - pos1.latitude) * p) / 2 +
-        cos(pos1.latitude * p) * cos(pos2.latitude * p) *
-            (1 - cos((pos2.longitude - pos1.longitude) * p)) / 2;
-    return 12742 * asin(sqrt(a)); // Distance in km
   }
 
   void _onMapCreated(MapboxMapController controller) {
@@ -211,13 +207,19 @@ class _HomeScreenState extends State<HomeScreen> {
     _mapController?.onSymbolTapped.add((symbol) {
       final geometry = symbol.options.geometry;
       if (geometry != null) {
+        const double tolerance = 0.0001; // Allow a small margin of error for floating-point comparison
         for (var route in routes) {
-          final firstStop = route['stops'][0];
-          if (firstStop['lat'] == geometry.latitude && firstStop['lng'] == geometry.longitude) {
-            _onIconTapped(route);
-            break;
+          if (route['stops'] != null && route['stops'].isNotEmpty) {
+            final firstStop = route['stops'][0];
+            if ((firstStop['lat'] - geometry.latitude).abs() < tolerance &&
+                (firstStop['lng'] - geometry.longitude).abs() < tolerance) {
+              print('Matched route ID: ${route['id']}');
+              _showRouteVisualization(route['id']);
+              return;
+            }
           }
         }
+        print('No matching route found for symbol at ${geometry.latitude}, ${geometry.longitude}');
       }
     });
   }
@@ -240,39 +242,33 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _logout() async {
-    try {
-      await FirebaseAuth.instance.signOut();
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => LoginPage()),
-      );
-    } catch (e) {
-      print('Error logging out: $e');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao fazer logout.')));
-    }
+  Widget _buildFilters() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: filters.map((filter) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: ChoiceChip(
+              label: Text(filter),
+              selected: selectedFilter == filter,
+              selectedColor: Colors.redAccent,
+              onSelected: (bool selected) {
+                setState(() {
+                  selectedFilter = selected ? filter : 'Todos';
+                });
+              },
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 
   Widget _buildCategories() {
     return Column(
       children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: ["Romantic", "Family", "Cultural", "First Date"].map((category) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: ChoiceChip(
-                  label: Text(category),
-                  selected: false,
-                  selectedColor: Theme.of(context).primaryColor,
-                  labelStyle: TextStyle(color: Colors.black),
-                  onSelected: (_) {},
-                ),
-              );
-            }).toList(),
-          ),
-        ),
+        _buildFilters(),
         ..._buildNearbyRoutesCards(),
       ],
     );
@@ -348,16 +344,12 @@ class _HomeScreenState extends State<HomeScreen> {
         title: Text('DateFindr', style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.redAccent,
         iconTheme: IconThemeData(color: Colors.white),
-        leading: Builder(
-          builder: (context) {
-            return IconButton(
-              icon: Icon(Icons.menu),
-              onPressed: () {
-                Scaffold.of(context).openDrawer();
-              },
-            );
-          },
-        ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: _logout,
+          ),
+        ],
       ),
       drawer: Drawer(
         child: ListView(

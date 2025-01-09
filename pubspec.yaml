@@ -45,6 +45,7 @@ dependencies:
   image_picker: ^1.1.2
   intl: ^0.19.0
   http: ^1.2.2
+  url_launcher: ^6.3.1
 
 
 
@@ -80,6 +81,11 @@ flutter:
     - assets/map_icons/corrida.png
     - assets/map_icons/familia.png
     - assets/map_icons/livro.png
+    - assets/number_map_icons/one.png
+    - assets/number_map_icons/two.png
+    - assets/number_map_icons/three.png
+    - assets/number_map_icons/four.png
+    - assets/number_map_icons/five.png
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

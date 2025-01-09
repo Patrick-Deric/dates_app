@@ -10,7 +10,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Firebase initialization
-  await _initializeFirebase();
+  try {
+    await _initializeFirebase();
+  } catch (e) {
+    debugPrint("Firebase initialization error: $e");
+  }
 
   runApp(MyApp());
 }
@@ -43,16 +47,16 @@ class MyApp extends StatelessWidget {
       title: 'DateFindr',
       theme: ThemeData(
         brightness: Brightness.light,
-        primaryColor: Color(0xFFFF6F61),  // Warm Rose/Coral
-        hintColor: Color(0xFFFFC107),   // Muted Gold for accents
-        scaffoldBackgroundColor: Color(0xFFF5F5F5),  // Warm Grey/Beige background
+        primaryColor: const Color(0xFFFF6F61),  // Warm Rose/Coral
+        hintColor: const Color(0xFFFFC107),   // Muted Gold for accents
+        scaffoldBackgroundColor: const Color(0xFFF5F5F5),  // Warm Grey/Beige background
         buttonTheme: ButtonThemeData(
-          buttonColor: Color(0xFFFF6F61),
+          buttonColor: const Color(0xFFFF6F61),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(30),  // Rounded corners
           ),
         ),
-        textTheme: TextTheme(
+        textTheme: const TextTheme(
           displayLarge: TextStyle(
             fontFamily: 'Poppins',
             fontSize: 28,
@@ -74,7 +78,7 @@ class MyApp extends StatelessWidget {
       ),
       initialRoute: '/',  // Define the initial route
       routes: {
-        '/': (context) => AuthWrapper(),  // Entry point
+        '/': (context) => const AuthWrapper(),  // Entry point
         '/home': (context) => HomeScreen(),  // Route to HomeScreen
         '/login': (context) => LoginPage(),  // Route to LoginPage for flexibility
       },
@@ -83,22 +87,24 @@ class MyApp extends StatelessWidget {
 }
 
 class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
+          return const Scaffold(
             body: Center(child: CircularProgressIndicator()),  // Loading spinner
           );
         }
 
         if (snapshot.hasError) {
-          return Scaffold(
+          return const Scaffold(
             body: Center(
               child: Text(
-                'Ocorreu um erro. Tente novamente mais tarde.',
+                'An error occurred. Please try again later.',
                 style: TextStyle(color: Colors.red, fontSize: 18),
               ),
             ),
@@ -106,16 +112,13 @@ class AuthWrapper extends StatelessWidget {
         }
 
         if (snapshot.hasData && snapshot.data != null) {
-          User? user = snapshot.data;
-          // Direct to home if authenticated
+          // User authenticated
           return HomeScreen();
         }
 
-        // If not authenticated, direct to login
+        // User not authenticated
         return LoginPage();
       },
     );
   }
 }
-
-

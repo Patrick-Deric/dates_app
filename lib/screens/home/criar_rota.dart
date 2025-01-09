@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:app_de_dates/widgets/mapbox_map_widget.dart';
 import 'Route_visualization.dart';
 
 class CreateDateScreen extends StatefulWidget {
@@ -14,7 +13,7 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
   List<Map<String, dynamic>> selectedStops = [];
   List<Map<String, dynamic>> searchResults = [];
   bool _isRouteCreated = false;
-  String apiKey = 'AIzaSyA3Z3QuTeYR2WTtDu1Aj1H5XKaoWM8TqHk';
+  String apiKey = 'AIzaSyA3Z3QuTeYR2WTtDu1Aj1H5XKaoWM8TqHk'; // Replace with your actual Google API key
   TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
 
@@ -26,7 +25,7 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
     'Date ao Ar Livre',
     'Date Familiar',
     'Date Atividade Fisica',
-    'Date Festa'
+    'Date Festa',
   ];
 
   // Static location for the user's city
@@ -39,32 +38,41 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
       searchResults.clear();
     });
 
-    var firestoreResults = await FirebaseFirestore.instance
-        .collection('businesses')
-        .where('businessName', isGreaterThanOrEqualTo: query)
-        .where('businessName', isLessThanOrEqualTo: query + '\uf8ff')
-        .get();
+    try {
+      // Firestore search
+      var firestoreResults = await FirebaseFirestore.instance
+          .collection('businesses')
+          .where('businessName', isGreaterThanOrEqualTo: query)
+          .where('businessName', isLessThanOrEqualTo: query + '\uf8ff')
+          .get();
 
-    if (firestoreResults.docs.isNotEmpty) {
-      firestoreResults.docs.forEach((doc) {
-        searchResults.add({
-          'name': doc['businessName'],
-          'address': doc['address'],
-          'location': doc['geolocation'],
-          'source': 'firestore',
+      if (firestoreResults.docs.isNotEmpty) {
+        firestoreResults.docs.forEach((doc) {
+          searchResults.add({
+            'name': doc['businessName'],
+            'address': doc['address'],
+            'location': doc['geolocation'],
+            'source': 'firestore',
+          });
         });
-      });
-    }
+      }
 
-    if (searchResults.isEmpty) {
-      var googlePlacesResults = await _fetchGooglePlaces(query);
-      googlePlacesResults.forEach((place) {
-        searchResults.add({
-          'name': place['description'],
-          'placeId': place['place_id'],
-          'source': 'google',
+      // Google Places search if no Firestore results
+      if (searchResults.isEmpty) {
+        var googlePlacesResults = await _fetchGooglePlaces(query);
+        googlePlacesResults.forEach((place) {
+          searchResults.add({
+            'name': place['description'],
+            'placeId': place['place_id'],
+            'source': 'google',
+          });
         });
-      });
+      }
+    } catch (e) {
+      print('Error during search: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao procurar lugares.')),
+      );
     }
 
     setState(() {
@@ -74,10 +82,7 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
 
   Future<List<dynamic>> _fetchGooglePlaces(String query) async {
     String url =
-        'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=$query'
-        '&location=$userLatitude,$userLongitude'
-        '&radius=50000'
-        '&key=$apiKey';
+        'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=$query&location=$userLatitude,$userLongitude&radius=50000&key=$apiKey';
 
     final response = await http.get(Uri.parse(url));
 
@@ -92,6 +97,7 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
   Future<Map<String, dynamic>> _fetchPlaceDetails(String placeId) async {
     String url =
         'https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$apiKey';
+
     final response = await http.get(Uri.parse(url));
 
     if (response.statusCode == 200) {
@@ -121,7 +127,8 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
       });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Você só pode adicionar até 5 paradas.')));
+        SnackBar(content: Text('Você só pode adicionar até 5 paradas.')),
+      );
     }
   }
 
@@ -139,16 +146,11 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
         itemBuilder: (context, index) {
           var result = searchResults[index];
           return ListTile(
-            title: Text(
-              result['name'],
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 16),
-            ),
+            title: Text(result['name']),
             subtitle: Text(
               result['source'] == 'firestore'
                   ? result['address']
                   : 'Resultado do Google',
-              style: TextStyle(fontSize: 14),
             ),
             onTap: () {
               _selectStop(result);
@@ -157,9 +159,8 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
           );
         },
       );
-    } else {
-      return SizedBox.shrink();
     }
+    return SizedBox.shrink();
   }
 
   Widget _buildSelectedStops() {
@@ -178,14 +179,12 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
           child: ListTile(
             leading: CircleAvatar(
               backgroundColor: Colors.redAccent,
-              child: Text((index + 1).toString(),
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: Text((index + 1).toString()),
             ),
-            title: Text(stop['name'],
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            title: Text(stop['name']),
             subtitle: Text(stop['address']),
             trailing: IconButton(
-              icon: Icon(Icons.close, color: Colors.redAccent),
+              icon: Icon(Icons.close),
               onPressed: () {
                 _removeStop(index);
               },
@@ -194,6 +193,56 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
         );
       },
     );
+  }
+
+  Widget _buildCategorySelection() {
+    return Wrap(
+      spacing: 10,
+      children: categories.map((category) {
+        return ChoiceChip(
+          label: Text(category),
+          selected: selectedCategory == category,
+          onSelected: (bool selected) {
+            setState(() {
+              selectedCategory = selected ? category : null;
+            });
+          },
+        );
+      }).toList(),
+    );
+  }
+
+  Future<void> _saveRoute() async {
+    if (selectedStops.isEmpty || selectedCategory == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Adicione paradas e escolha um tipo de date.')),
+      );
+      return;
+    }
+
+    try {
+      DocumentReference routeRef = await FirebaseFirestore.instance
+          .collection('routes')
+          .add({
+        'stops': selectedStops,
+        'created_at': Timestamp.now(),
+        'category': selectedCategory,
+      });
+
+      setState(() {
+        _isRouteCreated = true;
+        routeId = routeRef.id;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Rota criada com sucesso!')),
+      );
+    } catch (e) {
+      print('Error saving route: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao salvar a rota.')),
+      );
+    }
   }
 
   String? routeId;
@@ -220,71 +269,17 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
 
   Widget _buildSubmitButton() {
     return ElevatedButton(
-      onPressed: () async {
-        if (selectedStops.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Por favor, selecione pelo menos uma parada.')));
-          return;
-        }
-
-        if (selectedCategory == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Por favor, selecione um tipo de date.')));
-          return;
-        }
-
-        DocumentReference routeRef = await FirebaseFirestore.instance.collection('routes').add({
-          'stops': selectedStops,
-          'created_at': Timestamp.now(),
-          'category': selectedCategory,
-        });
-
-        setState(() {
-          _isRouteCreated = true;
-          routeId = routeRef.id;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Rota criada com sucesso!')));
-      },
+      onPressed: _saveRoute,
       child: Text('Criar Rota'),
-    );
-  }
-
-  Widget _buildCategorySelection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Selecione o Tipo de Date:',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        Wrap(
-          spacing: 10,
-          children: categories.map((category) {
-            return ChoiceChip(
-              label: Text(category),
-              selected: selectedCategory == category,
-              onSelected: (bool selected) {
-                setState(() {
-                  selectedCategory = selected ? category : null;
-                });
-              },
-            );
-          }).toList(),
-        ),
-      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Criar Date'),
-      ),
+      appBar: AppBar(title: Text('Criar Date')),
       body: Padding(
-        padding: const EdgeInsets.all(8.0),
+        padding: EdgeInsets.all(8.0),
         child: Column(
           children: [
             TextField(
@@ -305,17 +300,13 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
               onChanged: (query) {
                 if (query.isNotEmpty) {
                   _performSearch(query);
-                } else {
-                  setState(() {
-                    searchResults.clear();
-                  });
                 }
               },
             ),
             SizedBox(height: 10),
-            Text('Paradas Selecionadas:', style: TextStyle(fontSize: 16)),
             Expanded(child: _buildSelectedStops()),
             _buildSearchResults(),
+            SizedBox(height: 10),
             _buildCategorySelection(),
             _buildViewMapButton(),
             _buildSubmitButton(),
