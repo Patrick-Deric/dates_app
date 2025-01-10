@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app_de_dates/widgets/mapbox_map_widget.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:url_launcher/url_launcher.dart'; // For launching Google Maps
+import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class MapVisualizationScreen extends StatefulWidget {
@@ -39,7 +39,6 @@ class _MapVisualizationScreenState extends State<MapVisualizationScreen> {
             final index = entry.key;
             final stop = entry.value;
 
-            // Assign the appropriate icon name for each stop
             final iconNames = ['one.png', 'two.png', 'three.png', 'four.png', 'five.png'];
             stop['icon'] = 'assets/number_map_icons/${iconNames[index]}';
             return stop;
@@ -87,7 +86,6 @@ class _MapVisualizationScreenState extends State<MapVisualizationScreen> {
     TextEditingController controller = TextEditingController();
     String? selectedCollection;
 
-    // Fetch collections
     final collectionsSnapshot = await FirebaseFirestore.instance
         .collection('favourites')
         .doc(userId)
@@ -206,7 +204,7 @@ class _MapVisualizationScreenState extends State<MapVisualizationScreen> {
         leading: IconButton(
           icon: Icon(Icons.arrow_back),
           onPressed: () {
-            Navigator.pop(context);
+            Navigator.popUntil(context, (route) => route.isFirst); // Always navigate back to home
           },
         ),
         actions: [
@@ -245,9 +243,9 @@ class _MapVisualizationScreenState extends State<MapVisualizationScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.directions),
+                  Icon(Icons.directions, color: Colors.white),
                   SizedBox(width: 8),
-                  Text('Abrir no Google Maps'),
+                  Text('Abrir no Google Maps', style: TextStyle(color: Colors.white)),
                 ],
               ),
             ),

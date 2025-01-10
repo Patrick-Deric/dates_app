@@ -10,14 +10,14 @@ class CreateDateScreen extends StatefulWidget {
 }
 
 class _CreateDateScreenState extends State<CreateDateScreen> {
+  int _currentStep = 0;
   List<Map<String, dynamic>> selectedStops = [];
   List<Map<String, dynamic>> searchResults = [];
-  bool _isRouteCreated = false;
-  String apiKey = 'AIzaSyA3Z3QuTeYR2WTtDu1Aj1H5XKaoWM8TqHk'; // Replace with your actual Google API key
+  String apiKey = 'AIzaSyA3Z3QuTeYR2WTtDu1Aj1H5XKaoWM8TqHk';
   TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
+  bool _isSaving = false;
 
-  // Categories for the date
   String? selectedCategory;
   final List<String> categories = [
     'Date Romântico',
@@ -28,10 +28,6 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
     'Date Festa',
   ];
 
-  // Static location for the user's city
-  double userLatitude = -23.5505; // São Paulo latitude
-  double userLongitude = -46.6333; // São Paulo longitude
-
   Future<void> _performSearch(String query) async {
     setState(() {
       _isSearching = true;
@@ -39,7 +35,6 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
     });
 
     try {
-      // Firestore search
       var firestoreResults = await FirebaseFirestore.instance
           .collection('businesses')
           .where('businessName', isGreaterThanOrEqualTo: query)
@@ -57,7 +52,6 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
         });
       }
 
-      // Google Places search if no Firestore results
       if (searchResults.isEmpty) {
         var googlePlacesResults = await _fetchGooglePlaces(query);
         googlePlacesResults.forEach((place) {
@@ -82,7 +76,7 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
 
   Future<List<dynamic>> _fetchGooglePlaces(String query) async {
     String url =
-        'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=$query&location=$userLatitude,$userLongitude&radius=50000&key=$apiKey';
+        'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=$query&location=-23.5505,-46.6333&radius=50000&key=$apiKey';
 
     final response = await http.get(Uri.parse(url));
 
@@ -118,7 +112,7 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
     if (selectedStops.length < 5) {
       if (stop['source'] == 'google') {
         var details = await _fetchPlaceDetails(stop['placeId']);
-        stop.addAll(details);
+        stop = {...stop, ...details};
       }
       setState(() {
         selectedStops.add(stop);
@@ -138,87 +132,17 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
     });
   }
 
-  Widget _buildSearchResults() {
-    if (_searchController.text.isNotEmpty && searchResults.isNotEmpty) {
-      return ListView.builder(
-        shrinkWrap: true,
-        itemCount: searchResults.length,
-        itemBuilder: (context, index) {
-          var result = searchResults[index];
-          return ListTile(
-            title: Text(result['name']),
-            subtitle: Text(
-              result['source'] == 'firestore'
-                  ? result['address']
-                  : 'Resultado do Google',
-            ),
-            onTap: () {
-              _selectStop(result);
-              FocusScope.of(context).unfocus();
-            },
-          );
-        },
-      );
-    }
-    return SizedBox.shrink();
-  }
-
-  Widget _buildSelectedStops() {
-    return ListView.builder(
-      shrinkWrap: true,
-      itemCount: selectedStops.length,
-      itemBuilder: (context, index) {
-        var stop = selectedStops[index];
-        return Container(
-          margin: EdgeInsets.symmetric(vertical: 5),
-          padding: EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.withOpacity(0.5)),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Colors.redAccent,
-              child: Text((index + 1).toString()),
-            ),
-            title: Text(stop['name']),
-            subtitle: Text(stop['address']),
-            trailing: IconButton(
-              icon: Icon(Icons.close),
-              onPressed: () {
-                _removeStop(index);
-              },
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildCategorySelection() {
-    return Wrap(
-      spacing: 10,
-      children: categories.map((category) {
-        return ChoiceChip(
-          label: Text(category),
-          selected: selectedCategory == category,
-          onSelected: (bool selected) {
-            setState(() {
-              selectedCategory = selected ? category : null;
-            });
-          },
-        );
-      }).toList(),
-    );
-  }
-
-  Future<void> _saveRoute() async {
+  Future<void> _saveRoute(BuildContext context) async {
     if (selectedStops.isEmpty || selectedCategory == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Adicione paradas e escolha um tipo de date.')),
       );
       return;
     }
+
+    setState(() {
+      _isSaving = true;
+    });
 
     try {
       DocumentReference routeRef = await FirebaseFirestore.instance
@@ -229,58 +153,36 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
         'category': selectedCategory,
       });
 
-      setState(() {
-        _isRouteCreated = true;
-        routeId = routeRef.id;
-      });
+      String routeId = routeRef.id;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Rota criada com sucesso!')),
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MapVisualizationScreen(
+            routeId: routeId,
+          ),
+        ),
       );
     } catch (e) {
       print('Error saving route: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao salvar a rota.')),
       );
+    } finally {
+      setState(() {
+        _isSaving = false;
+      });
     }
   }
 
-  String? routeId;
-
-  Widget _buildViewMapButton() {
-    return ElevatedButton(
-      onPressed: () {
-        if (routeId != null) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => MapVisualizationScreen(routeId: routeId!),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Crie a rota primeiro antes de visualizar no mapa.')),
-          );
-        }
-      },
-      child: Text('Visualizar no Mapa'),
-    );
-  }
-
-  Widget _buildSubmitButton() {
-    return ElevatedButton(
-      onPressed: _saveRoute,
-      child: Text('Criar Rota'),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Criar Date')),
-      body: Padding(
-        padding: EdgeInsets.all(8.0),
-        child: Column(
+  Widget _buildStepContent(int step) {
+    switch (step) {
+      case 0:
+        return Column(
           children: [
             TextField(
               controller: _searchController,
@@ -304,14 +206,152 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
               },
             ),
             SizedBox(height: 10),
-            Expanded(child: _buildSelectedStops()),
-            _buildSearchResults(),
-            SizedBox(height: 10),
-            _buildCategorySelection(),
-            _buildViewMapButton(),
-            _buildSubmitButton(),
+            if (searchResults.isNotEmpty)
+              SizedBox(
+                height: 200,
+                child: ListView.builder(
+                  itemCount: searchResults.length,
+                  itemBuilder: (context, index) {
+                    var result = searchResults[index];
+                    return Column(
+                      children: [
+                        ListTile(
+                          title: Text(result['name']),
+                          subtitle: Text(
+                            result['source'] == 'firestore'
+                                ? result['address']
+                                : 'Resultado do Google',
+                          ),
+                          onTap: () => _selectStop(result),
+                        ),
+                        Divider(),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            if (selectedStops.isNotEmpty)
+              SizedBox(
+                height: 200,
+                child: ListView.builder(
+                  itemCount: selectedStops.length,
+                  itemBuilder: (context, index) {
+                    var stop = selectedStops[index];
+                    return ListTile(
+                      leading: CircleAvatar(
+                        child: Text((index + 1).toString()),
+                        backgroundColor: Colors.blueAccent,
+                      ),
+                      title: Text(stop['name']),
+                      subtitle: Text(stop['address']),
+                      trailing: IconButton(
+                        icon: Icon(Icons.close),
+                        onPressed: () => _removeStop(index),
+                      ),
+                    );
+                  },
+                ),
+              ),
           ],
-        ),
+        );
+      case 1:
+        return Wrap(
+          spacing: 10,
+          children: categories.map((category) {
+            return ChoiceChip(
+              label: Text(category),
+              selected: selectedCategory == category,
+              onSelected: (selected) {
+                setState(() {
+                  selectedCategory = selected ? category : null;
+                });
+              },
+            );
+          }).toList(),
+        );
+      case 2:
+        return Container(); // Empty, controlled via `controlsBuilder`.
+      default:
+        return SizedBox.shrink();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Criar Date'),
+      ),
+      body: Stepper(
+        currentStep: _currentStep,
+        onStepContinue: () {
+          if (_currentStep == 2) {
+            _saveRoute(context); // Save route on final step.
+          } else if ((_currentStep == 0 && selectedStops.isEmpty) ||
+              (_currentStep == 1 && selectedCategory == null)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Por favor, complete este passo antes de continuar.')),
+            );
+          } else {
+            setState(() {
+              _currentStep++;
+            });
+          }
+        },
+        onStepCancel: () {
+          if (_currentStep > 0) {
+            setState(() {
+              _currentStep--;
+              if (_currentStep == 0) selectedStops.clear();
+              if (_currentStep == 1) selectedCategory = null;
+            });
+          }
+        },
+        controlsBuilder: (BuildContext context, ControlsDetails controls) {
+          final canContinue = (_currentStep == 0 && selectedStops.isNotEmpty) ||
+              (_currentStep == 1 && selectedCategory != null) || _currentStep == 2;
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              ElevatedButton(
+                onPressed: canContinue ? controls.onStepContinue : null,
+                style: ElevatedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  backgroundColor: canContinue ? Colors.redAccent : Colors.grey,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text('Continuar'),
+              ),
+              if (_currentStep > 0)
+                TextButton(
+                  onPressed: controls.onStepCancel,
+                  style: TextButton.styleFrom(foregroundColor: Colors.grey),
+                  child: Text('Retornar'),
+                ),
+            ],
+          );
+        },
+        steps: [
+          Step(
+            title: Text('Adicionar Lugares'),
+            isActive: true,
+            state: selectedStops.isNotEmpty ? StepState.complete : StepState.indexed,
+            content: _buildStepContent(0),
+          ),
+          Step(
+            title: Text('Selecionar Categoria'),
+            isActive: true,
+            state: selectedCategory != null ? StepState.complete : StepState.indexed,
+            content: _buildStepContent(1),
+          ),
+          Step(
+            title: Text('Finalizar e Salvar'),
+            isActive: true,
+            content: _buildStepContent(2),
+          ),
+        ],
       ),
     );
   }
