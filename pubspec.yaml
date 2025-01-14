@@ -86,6 +86,9 @@ flutter:
     - assets/number_map_icons/three.png
     - assets/number_map_icons/four.png
     - assets/number_map_icons/five.png
+    - assets/icons_buttons_cards/car.png
+    - assets/icons_buttons_cards/man-walking.png
+    - assets/icons_buttons_cards/google.png
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

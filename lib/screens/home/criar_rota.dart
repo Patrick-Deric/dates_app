@@ -102,6 +102,7 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
         'address': data['result']['formatted_address'],
         'lat': location['lat'],
         'lng': location['lng'],
+        'placeId': placeId,
       };
     } else {
       throw Exception('Failed to load place details');
@@ -145,12 +146,19 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
     });
 
     try {
+      // Extract placeIds from the selected stops
+      List<String> stopPlaceIds = selectedStops
+          .where((stop) => stop['placeId'] != null)
+          .map((stop) => stop['placeId'] as String)
+          .toList();
+
       DocumentReference routeRef = await FirebaseFirestore.instance
           .collection('routes')
           .add({
-        'stops': selectedStops,
-        'created_at': Timestamp.now(),
         'category': selectedCategory,
+        'created_at': Timestamp.now(),
+        'stops': selectedStops, // All stops for this route are stored here
+        'stopPlaceIds': stopPlaceIds, // Array of placeIds for easier querying
       });
 
       String routeId = routeRef.id;
@@ -163,7 +171,7 @@ class _CreateDateScreenState extends State<CreateDateScreen> {
         context,
         MaterialPageRoute(
           builder: (context) => MapVisualizationScreen(
-            routeId: routeId,
+            routeId: routeId, // Pass the route ID to the map screen
           ),
         ),
       );

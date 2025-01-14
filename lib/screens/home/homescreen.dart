@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:app_de_dates/screens/home/stop_details_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +12,7 @@ import 'favourites.dart';
 import 'profile.dart';
 import 'criar_rota.dart';
 import 'package:url_launcher/url_launcher.dart'; // For Google Maps link
+
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -101,22 +103,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
     for (var route in routes) {
       if (route['stops'].isNotEmpty) {
-        final firstStop = route['stops'][0];
-        final category = route['category'] ?? 'Todos';
-        final iconImage = categoryIcons[category] ?? 'assets/map_icons/default.png';
+        for (var stop in route['stops']) {
+          final category = route['category'] ?? 'Todos';
+          final iconImage = categoryIcons[category] ?? 'assets/map_icons/default.png';
 
-        if (firstStop['lat'] != null && firstStop['lng'] != null) {
-          _mapController?.addSymbol(
-            SymbolOptions(
-              geometry: LatLng(firstStop['lat'], firstStop['lng']),
-              iconImage: iconImage,
-              iconSize: 2.0,
-            ),
-          );
+          if (stop['lat'] != null && stop['lng'] != null) {
+            _mapController?.addSymbol(
+              SymbolOptions(
+                geometry: LatLng(stop['lat'], stop['lng']),
+                iconImage: iconImage,
+                iconSize: 2.0,
+              ),
+            );
+          }
         }
       }
     }
   }
+
 
   Future<void> _logout() async {
     try {
@@ -141,23 +145,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-
-  void _openInGoogleMaps(Map<String, dynamic> route) {
-    if (route['stops'] != null && route['stops'].isNotEmpty) {
-      final stops = List<Map<String, dynamic>>.from(route['stops']);
-      final origin = '${stops.first['lat']},${stops.first['lng']}';
-      final destination = '${stops.last['lat']},${stops.last['lng']}';
-      final waypoints = stops
-          .sublist(1, stops.length - 1)
-          .map((stop) => '${stop['lat']},${stop['lng']}')
-          .join('|');
-
-      final googleMapsUrl =
-          'https://www.google.com/maps/dir/?api=1&origin=$origin&destination=$destination&waypoints=$waypoints';
-
-      launch(googleMapsUrl);
-    }
+  void _openStopDetails(Map<String, dynamic> stop) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StopDetailsScreen(stop: stop),
+      ),
+    );
   }
+
 
   List<Widget> _buildNearbyRoutesCards() {
     if (routes.isEmpty) {
@@ -184,21 +180,22 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 3,
         child: ListTile(
           leading: Image.asset(
-            iconPath, // Use the same icon paths as the map
+            iconPath,
             width: 40,
             height: 40,
           ),
           title: Text(route['stops'][0]['name']),
           subtitle: Text('Categoria: ${route['category']}'),
           trailing: IconButton(
-            icon: Icon(Icons.directions),
-            onPressed: () => _openInGoogleMaps(route),
+            icon: Icon(Icons.arrow_forward),
+            onPressed: () => _openStopDetails(route['stops'][0]),
           ),
           onTap: () => _showRouteVisualization(route['id']),
         ),
       );
     }).toList();
   }
+
 
   void _onMapCreated(MapboxMapController controller) {
     _mapController = controller;
@@ -207,22 +204,23 @@ class _HomeScreenState extends State<HomeScreen> {
     _mapController?.onSymbolTapped.add((symbol) {
       final geometry = symbol.options.geometry;
       if (geometry != null) {
-        const double tolerance = 0.0001; // Allow a small margin of error for floating-point comparison
+        const double tolerance = 0.0001;
         for (var route in routes) {
           if (route['stops'] != null && route['stops'].isNotEmpty) {
-            final firstStop = route['stops'][0];
-            if ((firstStop['lat'] - geometry.latitude).abs() < tolerance &&
-                (firstStop['lng'] - geometry.longitude).abs() < tolerance) {
-              print('Matched route ID: ${route['id']}');
-              _showRouteVisualization(route['id']);
-              return;
+            for (var stop in route['stops']) {
+              if ((stop['lat'] - geometry.latitude).abs() < tolerance &&
+                  (stop['lng'] - geometry.longitude).abs() < tolerance) {
+                _openStopDetails(stop);
+                return;
+              }
             }
           }
         }
-        print('No matching route found for symbol at ${geometry.latitude}, ${geometry.longitude}');
+        print('No matching stop found for symbol at ${geometry.latitude}, ${geometry.longitude}');
       }
     });
   }
+
 
   Widget _buildSearchBar() {
     return Container(

@@ -3,6 +3,7 @@ import 'package:app_de_dates/widgets/mapbox_map_widget.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:app_de_dates/screens/home/stop_details_screen.dart';
 
 class MapVisualizationScreen extends StatefulWidget {
   final String routeId;
@@ -10,7 +11,8 @@ class MapVisualizationScreen extends StatefulWidget {
   MapVisualizationScreen({required this.routeId});
 
   @override
-  _MapVisualizationScreenState createState() => _MapVisualizationScreenState();
+  _MapVisualizationScreenState createState() =>
+      _MapVisualizationScreenState();
 }
 
 class _MapVisualizationScreenState extends State<MapVisualizationScreen> {
@@ -180,6 +182,15 @@ class _MapVisualizationScreenState extends State<MapVisualizationScreen> {
     );
   }
 
+  void _onStopTap(Map<String, dynamic> stop) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StopDetailsScreen(stop: stop),
+      ),
+    );
+  }
+
   void _openInGoogleMaps() {
     if (routeStops.isNotEmpty) {
       final origin = '${routeStops.first['lat']},${routeStops.first['lng']}';
@@ -204,7 +215,7 @@ class _MapVisualizationScreenState extends State<MapVisualizationScreen> {
         leading: IconButton(
           icon: Icon(Icons.arrow_back),
           onPressed: () {
-            Navigator.popUntil(context, (route) => route.isFirst); // Always navigate back to home
+            Navigator.popUntil(context, (route) => route.isFirst);
           },
         ),
         actions: [
@@ -228,6 +239,7 @@ class _MapVisualizationScreenState extends State<MapVisualizationScreen> {
               initialLat: routeStops.first['lat'] ?? -23.5505,
               initialLng: routeStops.first['lng'] ?? -46.6333,
               selectedStops: routeStops,
+              onStopTap: _onStopTap,
             ),
           ),
           Padding(
@@ -245,7 +257,8 @@ class _MapVisualizationScreenState extends State<MapVisualizationScreen> {
                 children: [
                   Icon(Icons.directions, color: Colors.white),
                   SizedBox(width: 8),
-                  Text('Abrir no Google Maps', style: TextStyle(color: Colors.white)),
+                  Text('Abrir no Google Maps',
+                      style: TextStyle(color: Colors.white)),
                 ],
               ),
             ),

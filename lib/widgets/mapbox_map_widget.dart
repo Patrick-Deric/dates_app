@@ -11,12 +11,14 @@ class MapboxMapWidget extends StatefulWidget {
   final double initialLat;
   final double initialLng;
   final List<Map<String, dynamic>> selectedStops;
+  final void Function(Map<String, dynamic>) onStopTap; // Callback for stop taps
 
   MapboxMapWidget({
     required this.styleString,
     required this.initialLat,
     required this.initialLng,
     required this.selectedStops,
+    required this.onStopTap,
   });
 
   @override
@@ -89,6 +91,18 @@ class _MapboxMapWidgetState extends State<MapboxMapWidget> {
     await _loadNumberedIcons(); // Load numbered icons
     _addStopMarkers(); // Add markers with text
     await _fetchAndDrawRoute(); // Draw the route line
+
+    _mapController!.onSymbolTapped.add((Symbol symbol) {
+      final symbolLat = symbol.options.geometry?.latitude;
+      final symbolLng = symbol.options.geometry?.longitude;
+
+      for (var stop in widget.selectedStops) {
+        if (stop['lat'] == symbolLat && stop['lng'] == symbolLng) {
+          widget.onStopTap(stop); // Trigger the onStopTap callback
+          break;
+        }
+      }
+    });
   }
 
   void _addStopMarkers() {
